@@ -3,93 +3,69 @@ using System.Collections;
 using System;
 using System.IO;
 
-//using AudioUploadForm;
 
 public class test : MonoBehaviour {
 
-    String playername = "Foo";
-
+    // Variables for the game project:
     String recUrl = "https://your-domain-here/siak-debug/asr";
+    String playername = "Foo";
+    String playerpassword = "S(_)p3Rstr0Ng_p455w0RD";
+    // if or when the server crashes during the game session, the password will
+    // be useful to avoid logging in again. Should be strongly encrypted in https anyway!
 
-    String micstring;
-    bool micOn = false;
-    AudioSource aud;
-
+    // Variables for defining audio:
     int fs = 16000;
     int packetspersecond = 3;
     int maxAudioLen = 10;
-    
-    int audiobufflength;
-    int realsamplingrate;
-    int resamplingcoeff;
 
+    // Variables for recording:
+    String micstring;
+    AudioSource aud;    
+    bool micOn = false;
     int recstart;
     
+    // Variables for controlling packet sending:
     int sentpacketnr = 0;
-    int sentbuffernr;
-    int samplessent;
-    bool finalpacket;
+    int samplessent = 0;
+    bool finalpacket = false;
     int packetsize;
 
-        //int buffsize = 0;
-    int packetinterval;
 
-    //    float[] audiodatabuffer = new float[ (fs*maxAudioLen) ];
-
-
-    DateTime epochStart = new DateTime(1970, 1, 1, 8, 0, 0, DateTimeKind.Utc);
 
     // Use this for initialization
     void Start() {
-        Debug.Log("Start recording: " + System.DateTime.Now);
+
+    	// Calculate some essential values:
+        packetsize = (int)Math.Floor((double)(fs / packetspersecond));
+
+
         foreach (string device in Microphone.devices)
         {
             Debug.Log("Name: " + device);
         }
 
-        AudioConfiguration currentconf = AudioSettings.GetConfiguration();
+	// Hard-coded to use mic number 0; Bad Idea but where to choose these?
+        micstring = Microphone.devices[0];
 
-        realsamplingrate = currentconf.sampleRate;
-      
-        // A very crude way of doing resampling;
-        // Let's add a low-pass filter and decimating downsampling when the time is near.
-
-        resamplingcoeff = (int)Math.Floor((double)(realsamplingrate / fs));
-
-        int channelcount = 2;
-
-        audiobufflength = currentconf.dspBufferSize / resamplingcoeff / channelcount;
-
-        packetinterval = fs / audiobufflength;
-
-        packetsize = (int)Math.Floor((double)(fs / packetspersecond));
 
         recstart = Environment.TickCount;
 
         sentpacketnr = 0;
         finalpacket = false;
 
-        micstring = Microphone.devices[0];
 
     }
 
     // Update is called once per frame
     void Update() {
 
-  
-
-        if (Input.GetKeyDown(KeyCode.Space))
-        {
-            GetComponent<Rigidbody>().velocity = Vector3.up * 5;
-        }
+        // Simple controls for recording with key "r" pressed down:   
 
         else if (Input.GetKeyDown(KeyCode.R) && micOn == false)
         {
-            //GetComponent<Rigidbody>().velocity = Vector3.up * 5;
             recstart = Environment.TickCount;
             Debug.Log("Starting second: " + recstart.ToString());
-            startRec();
-            
+            startRec();            
         }
         else if (micOn == true && ( Input.GetKeyUp(KeyCode.R)  || recstart + 1000*maxAudioLen < Environment.TickCount ) )
         {
@@ -104,19 +80,17 @@ public class test : MonoBehaviour {
 
     void startRec()
     {
-
         //Start recording:
         aud = GetComponent<AudioSource>();
 
         // Device 0, no looping, 10 s record at 16 kHz:
         aud.clip = Microphone.Start(micstring, false, maxAudioLen, fs);
         micOn = true;
-        Debug.Log("Setting packetnr = 0; finalpacket = false");
+
         sentpacketnr = 0;
-        sentbuffernr = 0;
-        //buffsize = 0;
         samplessent = 0;
         finalpacket = false;
+
         aud.Play();
     }
 
@@ -126,20 +100,7 @@ public class test : MonoBehaviour {
         finalpacket = true;
         micOn = false;
         aud.Stop();
-
-        /*byte[] fyouall = new byte[audiodatabuffer.Length * 4];
-        Buffer.BlockCopy(audiodatabuffer, 0, fyouall, 0, audiodatabuffer.Length);
-        File.WriteAllBytes("/Users/Reima/temp/floaty",fyouall);*/
     }
-
-
-
-    void sendAudioToRecogniser()
-    {
-        int dummy = 1;
-        dummy++;
-    }
-
 
     void checkStartUpload()
     {
@@ -147,20 +108,22 @@ public class test : MonoBehaviour {
 
         if ( aud && ( ( micOn && writeHead > samplessent + packetsize )|| finalpacket))
         {
-            Debug.Log("aud " + aud.ToString() + "&& (writeHead " + writeHead + " > samplessent "
-                    + samplessent.ToString() + "+ packetsize " + packetsize.ToString() + "|| finalpacket " + finalpacket.ToString() + "))");
-
             int thispacketsize = packetsize;
+
+	    // The last packet might be smaller than the standard packet size:
             if (finalpacket)
             {
                 thispacketsize = writeHead - samplessent;
             }
+
+	    // Copy the relevant audio data to a float array at the samplessent point:
             float[] samples = new float[thispacketsize];
             aud.clip.GetData(samples, samplessent);
 
             startUpload(sentpacketnr++, finalpacket, samplessent, samples);
-            sentbuffernr += packetinterval;
 
+
+	    // Book-keeping for packets:
             samplessent += samples.Length;
 
             if (finalpacket)
@@ -174,57 +137,48 @@ public class test : MonoBehaviour {
 
     void startUpload(int thispacketnr, bool thisfinalpacket, int startsample,  float[] samples)
     {
-
+	// Make a byte array of the float array:
 
         // from http://stackoverflow.com/questions/4635769/how-do-i-convert-an-array-of-floats-to-a-byte-and-back
         // This only copies the first item in the float array.
         // var byteArray = new byte[audiodata.Length * 4];
         // Buffer.BlockCopy(audiodata, 0, byteArray, 0, byteArray.Length);
-        /*
-        new ArraySegment<float>(audiodatabuffer, sentbuffernr, sentbuffernr + packetinterval);
 
-        int floatstartpoint = (startpoint * audiobufflength );
-        int floatendpoint = (endpoint * audiobufflength );
-
-        Debug.Log("Copying " + floatstartpoint + "->" + floatendpoint + " from audiodatabuffer");
-        */
         var bytesamples = new byte[(samples.Length*4)];
         Buffer.BlockCopy(samples, 0, bytesamples, 0, samples.Length*4);
-        
-
+      
 
         WWWForm audioForm = new WWWForm();
 
         var customheaders = audioForm.headers;
 
         customheaders["X-siak-user"] = playername;
+        customheaders["X-siak-password"] = playerpassword;
         customheaders["X-siak-packetnr"] = thispacketnr.ToString();
 
         customheaders["X-siak-packet-arraystart"] = startsample.ToString();
-        customheaders["X-siak-packet-arrayend"] = (startsample+samples.Length).ToString();
-		customheaders["X-siak-packet-arraylength"] = (samples.Length).ToString();
+ 	customheaders["X-siak-packet-arrayend"] = (startsample+samples.Length).ToString();
+	customheaders["X-siak-packet-arraylength"] = (samples.Length).ToString();
         customheaders["X-siak-final-packet"] = finalpacket == true ? "true" : "false";
 
         String uploadfilename= "Gamedata-"+playername+ "_"+thispacketnr.ToString();
 
-        //audioForm.AddBinaryData("X-siak-game-data", bytedatasegment, uploadfilename);
         audioForm.AddBinaryData("X-siak-game-data", bytesamples, uploadfilename);
 
-
+	// Start the upload in a new thread:
         StartCoroutine(patientlyUpload(recUrl, audioForm.data, customheaders));
-
-        
-
-        //Debug.Log("This just in: "+wwwRec.text);
 
     }
 
 
     IEnumerator patientlyUpload(String targeturl, byte[] bytedata,  System.Collections.Generic.Dictionary<string,string> customheaders)
     {
-        Debug.Log("Starting www thing:");
+	// Uploading:
         WWW wwwRec = new WWW(targeturl, bytedata, customheaders);
+
         yield return wwwRec;
+
+	// Our answer from the server:
         Debug.Log(wwwRec.text);
     }
 
