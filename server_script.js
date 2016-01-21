@@ -1,9 +1,17 @@
 
+/*
+ * A simple script that receives binary data through HTTP(S) POST in pieces and feeds it to
+ * a momentarily non-existent processing script.
+ *
+ * Intended to do almost-real-time audio processing.
+ *
+ */
+
 
 // From: http://stackoverflow.com/questions/13478464/how-to-send-data-from-jquery-ajax-request-to-node-js-server
 
 var http = require('http');
-var util = require('util')
+var util = require('util');
 
 var events = require('events');
 
@@ -13,16 +21,30 @@ var fs = require('fs');
 var eventEmitter = new events.EventEmitter();
 var userdata = {};
 
+var audio_analyser = require('./audio_analyser');
+
 var audioconf = {
     'fs'                     : 16000,
     'max_utterance_length_s' : 10,
     'max_packet_length_s'    : 1,
-    'datatype_length'        : 4
-}
+    'datatype_length'        : 4,
+    'frame_step_samples'     : 128,
+    'frame_length_samples'   : 400,
+    'feature_dim'            : 30,
+    'pitch_low'              : 60,
+    'pitch_high'             : 240,
+    'lsforder'               : 15,
+    'lsflength'              : 16, // Should be order +1
+    'mceporder'              : 12,
+    'mceplength'             : 13 
+};
+
+
+
 
 
 function debugout(msg) {
-    if (process.env.DEBUG || false) {
+    if (false) {
 	console.log(msg);
     }
 }
@@ -55,7 +77,11 @@ http.createServer(function (req, res) {
 	    userdata[user].audiobinarydata = new Buffer( audioconf.max_utterance_length_s * audioconf.fs * audioconf.datatype_length );
 	    userdata[user].audiobinarydata.fill(0);
 
+	    userdata[user].featuredata = new Buffer( Math.ceil(audioconf.max_utterance_length_s * audioconf.fs / audioconf.frame_step_samples * audioconf.feature_dim) );
+	    userdata[user].featuredata.fill(0);
+
 	    userdata[user].bufferend=0;
+	    userdata[user].sent_to_analysis = 0;
 
 	    userdata[user].chunkeddata = new Buffer( audioconf.max_packet_length_s * audioconf.fs * audioconf.datatype_length );
 	}
@@ -199,7 +225,7 @@ function processDataChunks(user, res, packetnr) {
 
 eventEmitter.on('lastPacketCheck', //checkLastPacket);
 
-function checkLastPacket(user) {
+function (user) {
     
     var chunkcount = -1;    
     userdata[user].packetset.forEach( function(element, index, array) {
@@ -239,9 +265,12 @@ function clearUpload(user) {
 
     userdata[user].analysedpackets=0;
     
-    userdata[user].audiobinarydata.fill(-1);
+    //userdata[user].audiobinarydata.fill(-1);
+    //userdata[user].featuredata.fill(-1);
 
     userdata[user].bufferend=0;
+    userdata[user].sent_to_analysis=0;
+
 }
 
 
@@ -250,7 +279,7 @@ function clearUpload(user) {
 
 eventEmitter.on('sendAudioForAnalysis', // sendDataToAcousticAnalysis);
 
-function sendDataToAcousticAnalysis(user) {
+function (user) {
     syncAudioAnalysis(user);
 });
 
@@ -261,19 +290,37 @@ function syncAudioAnalysis(user) {
 
     debugout("sendDataToAcousticAnalysis: user "+user);
 
-    for (var i = parseInt(userdata[user].analysedpackets); 
-	 //typeof(userdata[user].audiopackets[i]) !== 'undefined'; 
-	 typeof(userdata[user].packetset[i]) !== 'undefined'; 
-	 i++) 
+    // Which part of the buffer can be already analysed?
+    
+    // Let's suppose for now that the packets arrive in order and so
+    range_start=userdata[user].sent_to_analysis;    
+
+    if (range_start > audioconf.frame_length_samples - audioconf.frame_step_samples) 
     {
-	debugout( "Should be sending packet "+ i +" for analysis but instead saving it to a file:");
-	
-	//fileBuffer = new Buffer(userdata[user].audiopackets[i], "base64");
-	//fs.writeFileSync('./upload_data/'+i, fileBuffer);
-	
-	userdata[user].analysedpackets=i;	
+	// Take into account the frame overlap:
+	range_start -= Math.floor(audioconf.frame_length_samples/audioconf.frame_step_samples)*audioconf.frame_step_samples; 
     }
-   
+
+    range_end= (userdata[user].bufferend - (userdata[user].bufferend % audioconf.frame_step_samples));
+
+    range_length = range_end-range_start;
+
+    result_range_length = range_length - Math.floor(audioconf.frame_length_samples/audioconf.frame_step_samples)*audioconf.frame_step_samples;
+
+
+    console.log("Sending to analysis: "+ range_start +"..."+range_end +" and receiving "+ range_start + "..." + (range_start+result_range_length) );
+
+    console.log(' inputbuffer length: ' + userdata[user].audiobinarydata.slice(range_start,range_length).length);
+    console.log('outputbuffer length: ' + userdata[user].featuredata.slice( range_start, result_range_length ).length);
+
+    audio_analyser.compute_features( audioconf,userdata[user].audiobinarydata.slice(range_start,range_length), userdata[user].featuredata.slice( range_start, result_range_length ));
+    
+    userdata[user].sent_to_analysis=range_end;
+
+    //fileBuffer = new Buffer(userdata[user].audiopackets[i], "base64");
+    //fs.writeFileSync('./upload_data/'+i, fileBuffer);
+    
+    fs.writeFileSync('/tmp/test_feature', userdata[user].featuredata);
 }
 
 
