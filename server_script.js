@@ -127,12 +127,18 @@ http.createServer(function (req, res) {
 	    	
 	    decodedchunks=new Buffer(postdata, 'base64');
 
+	    for (n=0; n< decodedchunks.length; n+=4) {
+		if (decodedchunks.readFloatLE(n) == 0) {
+		    decodedchunks.writeFloatLE( Math.random()/1000.0, n)
+		}
+	    }	    
+
 	    decodedchunks.copy( // src buffer
 		userdata[user].audiobinarydata, // targetbuffer
 		arraystart*audioconf.datatype_length, // targetstart
 		0, // sourcestart
-		decodedchunks.length); //source-length
-	    
+		decodedchunks.length); //source-length	 	    
+
 	    userdata[user].bufferend = Math.max( (arrayend)*audioconf.datatype_length, userdata[user].bufferend);
 
 	    processDataChunks(user, res, packetnr);		
