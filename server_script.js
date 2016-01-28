@@ -40,11 +40,11 @@ var audioconf = {
 };
 
 
-
+var debug = true;
 
 
 function debugout(msg) {
-    if (false) {
+    if (debug==true) {
 	console.log(msg);
     }
 }
@@ -108,88 +108,39 @@ http.createServer(function (req, res) {
 	userdata[user].chunkeddata.fill(0);
 
 	var startcounter=0;
-
-	
 	var chunkct=0;
+	var postdata = '';
 
 	req.on('data', function (chunk, encoding) {
-            debugout( 'GOT DATA! packet '+packetnr + ' chunk '+ chunkct +' length: '+chunk.length + " encoding: "+encoding);
-	    chunk.copy(userdata[user].chunkeddata, startcounter, 0, chunk.length);
-	    startcounter+=chunk.length;	
+	    
+	    postdata += chunk;
+
    	});
 	
 	req.on('end', function () {
 	    userdata[user].packetset[ packetnr ] = 1;
 	    
-	    
-	    var beginningbits=0;
-	    var newlines = 0;
-	    var checksumlen =0;
-	    
-	    // Remove the non-essential stuff from the beginning and end of 
-	    // the data transmission, ie.
-	    // 
-	    
-	    // --lArtHDOLHqiHcR4Z0FcLyxhKik4fCjzT25xHZgSS
-	    // Content-Type: application/octet-stream
-	    // Content-disposition: form-data; name="X-siak-game-data"; filename="X-siak-game-data.dat"
-	    // [data payload]
-	    // --lArtHDOLHqiHcR4Z0FcLyxhKik4fCjzT25xHZgSS--
-	    
-	    while (beginningbits < userdata[user].chunkeddata.length) {
-		charread=userdata[user].chunkeddata.readUIntLE(beginningbits);
-		//"beginningbit: "+beginningbits+ " value: "+ charread+ " / " + String.fromCharCode(charread));
-		if (userdata[user].chunkeddata.readUIntLE(beginningbits) == 10) {
-		    newlines++;
-		    if (newlines == 1) {
-			debugout( "checksumlength: "+(beginningbits+1));
-			checksumlen = beginningbits;
-		    }
-		    else if (newlines == 5) {
-			debugout( "the whole header: "+(beginningbits+1));
-			beginningbits += 1;
-			break;
-		    }
-		}
-		beginningbits+=1;
+	    // For debug:
+	    if (debug) {
+		fs.writeFile("upload_data/debug/"+user+"_packet_"+packetnr, postdata);
 	    }
-	    
-	    for (n=beginningbits-12; n<beginningbits+20; n+=4) {
-		debugout(userdata[user].chunkeddata.readFloatLE(n));
-	    }
+	    	
+	    decodedchunks=new Buffer(postdata, 'base64');
 
-	    debugout('...');
-
-	    for (n=(beginningbits+(arraylength*audioconf.datatype_length)-12); 
-		 n<(beginningbits+(arraylength*audioconf.datatype_length)+20); n+=4) {
-		debugout(userdata[user].chunkeddata.readFloatLE(n));		
-	    }
-
-	    userdata[user].bufferend = Math.max( (arrayend)*audioconf.datatype_length, userdata[user].bufferend);	   
-	    
-	    debugout( "Writing to buffer from " + 
-		      (arraystart*audioconf.datatype_length) + 
-		      " to "+ 
-		      (arraystart*audioconf.datatype_length +userdata[user].chunkeddata.length-beginningbits-checksumlen)+ 
-		      //"/"+userdata[user].bufferend +
-		      "/"+(arraystart +arraylength)*audioconf.datatype_length);
-	    
-	    //beginningbits *=4;
-	    //endbits=checksumlen*=4;
-            //                    src buffer       targetbuffer            targetstart    sourcestart    source-length
-	    userdata[user].chunkeddata.copy( // src buffer
+	    decodedchunks.copy( // src buffer
 		userdata[user].audiobinarydata, // targetbuffer
 		arraystart*audioconf.datatype_length, // targetstart
-		beginningbits, // sourcestart
-		((arraylength+beginningbits)*audioconf.datatype_length) //source-length
-	    );
+		0, // sourcestart
+		decodedchunks.length); //source-length
 	    
+	    userdata[user].bufferend = Math.max( (arrayend)*audioconf.datatype_length, userdata[user].bufferend);
+
 	    processDataChunks(user, res, packetnr);		
 	});
     }
-}).listen(process.env.PORT || 8000);
+}).listen(process.env.PORT || 8001);
 
-debugout('Server running on port '+ (process.env.PORT || 8000) );
+debugout('Server running on port '+ (process.env.PORT || 8001) );
 
 
 function processDataChunks(user, res, packetnr) {
@@ -238,15 +189,16 @@ function (user) {
 	    
 	debugout('Upload complete, should be finishing processing, but instead just saving the data and clearing');
 	
-	fs.writeFile("upload_data/test", userdata[user].audiobinarydata.slice(0,userdata[user].bufferend), function(err) {
-	    if(err) {
-		debugout(err);
-		return;
-	    }	    
-	    debugout( "The file was saved!");
-	    clearUpload(user);	    
-	}); 
-	
+	if (debug) {
+	    fs.writeFile("upload_data/debug/"+user+"_floatdata", userdata[user].audiobinarydata.slice(0,userdata[user].bufferend), function(err) {
+		if(err) {
+		    debugout(err);
+		    return;
+		}	    
+		debugout( "The file was saved!");
+		clearUpload(user);	    
+	    }); 
+	}	
 	userdata[user].lastPacketRes.end( JSON.stringify({score: 5.0*Math.random(), msg: "<br>All "+ chunkcount +" packets received!"}) );
     }
     else {
@@ -320,7 +272,9 @@ function syncAudioAnalysis(user) {
     //fileBuffer = new Buffer(userdata[user].audiopackets[i], "base64");
     //fs.writeFileSync('./upload_data/'+i, fileBuffer);
     
-    fs.writeFileSync('/tmp/test_feature', userdata[user].featuredata);
+    if (debug) {
+	fs.writeFileSync('upload_data/debug/test_feature_'+user, userdata[user].featuredata);
+    }
 }
 
 
