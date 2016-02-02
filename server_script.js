@@ -13,15 +13,22 @@
 var http = require('http');
 var util = require('util');
 
-var events = require('events');
 
 var fs = require('fs');
 
 // Events needed for data processing:
-var eventEmitter = new events.EventEmitter();
+//var events = require('events');
+//var eventEmitter = require('./emitters.js');
+//var eventEmitter = new events.EventEmitter();
+
+
+
+
+
 var userdata = {};
 
-var audio_analyser = require('./audio_analyser');
+
+
 
 var audioconf = {
     'fs'                     : 16000,
@@ -40,8 +47,11 @@ var audioconf = {
 };
 
 
-var debug = true;
 
+if (process.env.NODE_ENV !== 'production'){
+    require('longjohn');
+    var debug = true;
+}
 
 function debugout(msg) {
     if (debug==true) {
@@ -84,6 +94,8 @@ http.createServer(function (req, res) {
 	    userdata[user].sent_to_analysis = 0;
 
 	    userdata[user].chunkeddata = new Buffer( audioconf.max_packet_length_s * audioconf.fs * audioconf.datatype_length );
+	    userdata[user].featuresdone = [0,0,0];
+	    userdata[user].analysed = 0;
 	}
 	
 	
@@ -127,12 +139,6 @@ http.createServer(function (req, res) {
 	    	
 	    decodedchunks=new Buffer(postdata, 'base64');
 
-	    for (n=0; n< decodedchunks.length; n+=4) {
-		if (decodedchunks.readFloatLE(n) == 0) {
-		    decodedchunks.writeFloatLE( Math.random()/1000.0, n)
-		}
-	    }	    
-
 	    decodedchunks.copy( // src buffer
 		userdata[user].audiobinarydata, // targetbuffer
 		arraystart*audioconf.datatype_length, // targetstart
@@ -157,7 +163,7 @@ function processDataChunks(user, res, packetnr) {
 	// Do stuff with packet and acknowledge with message:
 
 	res.end( JSON.stringify({msg: "<br>Processing packet "+packetnr+" ---"}) );
-	eventEmitter.emit('sendAudioForAnalysis', user);
+	process.emit('sendAudioForAnalysis', user);
     }
     else {
 	// We know what the last packet is;
@@ -167,20 +173,22 @@ function processDataChunks(user, res, packetnr) {
 	    // Emit an event to the listener holding back the reply to the last packet:
 
 	    res.end( JSON.stringify({msg: "<br>Processing packet "+packetnr+" --- Last packet is "+userdata[user].lastpacketnr }) );
-	    eventEmitter.emit('lastPacketCheck', user);
+	    process.emit('lastPacketCheck', user);
 	}
 	else {
 	    // We're dealing with the last packet; Let's see if we have received all packets:
 	    // Count packets, see if it matches our nubmer:
 
+	    debugout("+++ Storing the last packet in userdata["+user+"].lastPacketRes");
+
 	    userdata[user].lastPacketRes=res;
-	    eventEmitter.emit('lastPacketCheck', user);
+	    process.emit('lastPacketCheck', user);
 	}
     }
 }
 
 
-eventEmitter.on('lastPacketCheck', //checkLastPacket);
+process.on('lastPacketCheck', //checkLastPacket);
 
 function (user) {
     
@@ -202,14 +210,13 @@ function (user) {
 		    return;
 		}	    
 		debugout( "The file was saved!");
-		clearUpload(user);	    
+		//clearUpload(user);	    
 	    }); 
 	}	
-	userdata[user].lastPacketRes.end( JSON.stringify({score: 5.0*Math.random(), msg: "<br>All "+ chunkcount +" packets received!"}) );
     }
     else {
 	debugout( "Checking for last: "+chunkcount+" == "+userdata[user].lastpacketnr );
-	eventEmitter.emit('sendAudioForAnalysis', user);
+	process.emit('sendAudioForAnalysis', user);
     }
 });
 
@@ -229,13 +236,18 @@ function clearUpload(user) {
     userdata[user].bufferend=0;
     userdata[user].sent_to_analysis=0;
 
+    userdata[user].featuresdone= [0,0,0];
+
+    userdata[user].analysed = 0;
+
+
 }
 
 
 
 
 
-eventEmitter.on('sendAudioForAnalysis', // sendDataToAcousticAnalysis);
+process.on('sendAudioForAnalysis', // sendDataToAcousticAnalysis);
 
 function (user) {
     syncAudioAnalysis(user);
@@ -271,7 +283,14 @@ function syncAudioAnalysis(user) {
     console.log(' inputbuffer length: ' + userdata[user].audiobinarydata.slice(range_start,range_length).length);
     console.log('outputbuffer length: ' + userdata[user].featuredata.slice( range_start, result_range_length ).length);
 
-    audio_analyser.compute_features( audioconf,userdata[user].audiobinarydata.slice(range_start,range_length), userdata[user].featuredata.slice( range_start, result_range_length ));
+
+    var audio_analyser = require('./audio_analyser');
+
+    audio_analyser.compute_features( audioconf,
+				     userdata[user].audiobinarydata.slice(range_start,range_length), 
+				     userdata[user].featuredata.slice( range_start, result_range_length ),
+				     user,
+				     range_end);
     
     userdata[user].sent_to_analysis=range_end;
 
@@ -286,11 +305,54 @@ function syncAudioAnalysis(user) {
 
 
 
+process.on('mfccDone', function (user, packetcode) { 
+    console.log( '   // Received event: // mfcc '+packetcode+' done for '+user); 
+    userdata[user].featuresdone[0] = Math.max( userdata[user].featuresdone[0], packetcode );    
+    check_feature_progress(user);
+});
+
+process.on('lsfDone', function (user, packetcode) { 
+    console.log( '   // Received event: // lsf '+packetcode+' done for '+user); 
+    userdata[user].featuresdone[1] = Math.max( userdata[user].featuresdone[1], packetcode );    
+    check_feature_progress(user);
+});
+
+process.on('logF0Done', function (user, packetcode) { 
+    console.log( '   // Received event: // logF0 batch '+packetcode+' done for '+user); 
+    userdata[user].featuresdone[2] = Math.max( userdata[user].featuresdone[2], packetcode );    
+    check_feature_progress(user);
+});
 
 
 
+function check_feature_progress(user) {
+    if ( Math.min.apply (Math,userdata[user].featuresdone) > userdata[user].analysed ) {
 
+	// Analyse up to the new max point.
+	var maxpoint =  Math.min.apply (Math, userdata[user].featuresdone);
+	debugout("*** Got data up to "+ maxpoint + ", lastpacket="+userdata[user].lastpacketnr);
+	
+	userdata[user].analysed = maxpoint;
+    
+	if (maxpoint => userdata[user].bufferend) {
 
+	    if (userdata[user].lastpacketnr > 0) {
+		debugout("*** Last packet, here goes!" );
+		
+		// Send a random number back, as we don't know of any better.
+		userdata[user].lastPacketRes.end( JSON.stringify({score: 5.0*Math.random(), msg: "<br>All " + userdata[user].lastpacketnr +" packets received!"}) );
+		
+		clearUpload(user)
+	    }
+	}
+
+	//userdata[user].featuresdone = [false,false,false];
+    }
+    else {
+	debugout("*** Waiting for more features ("+ userdata[user].featuresdone.toString() +" / "+  Math.min.apply (Math, userdata[user].featuresdone)   +")")
+    }
+
+}
 
 
 
