@@ -46,6 +46,11 @@ var audioconf = {
     'mceplength'             : 13 
 };
 
+var recogconf = {
+    'grammar' : 'words.conf'
+}
+
+
 
 
 if (process.env.NODE_ENV !== 'production'){
@@ -77,6 +82,9 @@ http.createServer(function (req, res) {
 	    
 	    userdata[user] = {};
 	    
+	    userdata[user].recogniser = require('./recogniser_client');
+	    userdata[user].recogniser.init(recogconf);
+
 	    //userdata[user].audiopackets=[];
 	    userdata[user].packetset=[];
 	    
@@ -96,10 +104,18 @@ http.createServer(function (req, res) {
 	    userdata[user].chunkeddata = new Buffer( audioconf.max_packet_length_s * audioconf.fs * audioconf.datatype_length );
 	    userdata[user].featuresdone = [0,0,0];
 	    userdata[user].analysed = 0;
+
+	    userdata[user].currentword=null;
 	}
-	
-	
+
+
 	packetnr = req.headers['x-siak-packetnr'];
+
+	if (packetnr == 0 ) {
+	    userdata[user].currentword=req.headers['X-siak-current-word'];	
+	    userdata[user].recogniser.define_word(userdata[user].currentword);
+	}
+
 	finalpacket = req.headers['x-siak-final-packet'];
 	arraystart = parseInt(req.headers['x-siak-packet-arraystart']);
 	arrayend = parseInt(req.headers['x-siak-packet-arrayend']);
@@ -239,7 +255,7 @@ function clearUpload(user) {
     userdata[user].featuresdone= [0,0,0];
 
     userdata[user].analysed = 0;
-
+    userdata[user].currentword=null;
 
 }
 
@@ -260,8 +276,10 @@ function syncAudioAnalysis(user) {
 
     debugout("sendDataToAcousticAnalysis: user "+user);
 
+
     // Which part of the buffer can be already analysed?
-    
+   
+
     // Let's suppose for now that the packets arrive in order and so
     range_start=userdata[user].sent_to_analysis;    
 
@@ -291,8 +309,20 @@ function syncAudioAnalysis(user) {
 				     userdata[user].featuredata.slice( range_start, result_range_length ),
 				     user,
 				     range_end);
+
+
+    // Send data to the recogniser process:
+    userdata[user].recogniser.send_audio(
+	userdata[user].audiobinarydata.slice(
+	    userdata[user].sent_to_analysis,
+	    range_end ) );
     
     userdata[user].sent_to_analysis=range_end;
+
+
+    
+
+
 
     //fileBuffer = new Buffer(userdata[user].audiopackets[i], "base64");
     //fs.writeFileSync('./upload_data/'+i, fileBuffer);
@@ -342,6 +372,8 @@ function check_feature_progress(user) {
 		// Send a random number back, as we don't know of any better.
 		userdata[user].lastPacketRes.end( JSON.stringify({score: 5.0*Math.random(), msg: "<br>All " + userdata[user].lastpacketnr +" packets received!"}) );
 		
+		
+	
 		clearUpload(user)
 	    }
 	}
@@ -353,14 +385,4 @@ function check_feature_progress(user) {
     }
 
 }
-
-
-
-
-
-
-
-
-
-
 
