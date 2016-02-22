@@ -28,7 +28,7 @@ function recogniser_client () {
 }
 
 
-function init(conf, res, initcallback) {
+function init(conf, user, res, initcallback) {
     var net = require('net');
 
     var HOST = '127.0.0.1';
@@ -89,6 +89,7 @@ function init(conf, res, initcallback) {
 	    if (arr[1].substr(0,20) == 'Completion-Cause:000') {
 		word = arr[4];
 		console.log("### Recognised \""+word+"\" ###");
+		process.emit('recognised',user, word);
 	    }
 	    else {
 		console.log("Something went wrong: \n"+data);

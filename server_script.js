@@ -127,7 +127,7 @@ http.createServer(function (req, res) {
 	req.on('end', function () {
 	    if (packetnr == -1) {
 		userdata[user].recogniser = require('./recogniser_client');
-		userdata[user].recogniser.init(recogconf, res, function(res) {
+		userdata[user].recogniser.init(recogconf, user, res, function(res) {
 		    res.end( JSON.stringify({msg: "<br>Recognition server initialised!"}) );
 		});				
 	    }
@@ -184,7 +184,7 @@ function init_userdata(user) {
 	userdata[user].analysed = 0;
 	
 	userdata[user].currentword=null;
-
+	userdata[user].recognised_word=false;
     }
 };
 
@@ -295,7 +295,7 @@ function clearUpload(user) {
 
     userdata[user].analysed = 0;
     userdata[user].currentword=null;
-
+    userdata[user].recognised_word = false;
 }
 
 
@@ -412,9 +412,15 @@ process.on('logF0Done', function (user, packetcode) {
 });
 
 
+process.on('recognised', function(user, word) {
+    console.log('   // Received event: // word recognised: "'+word+'" for '+user); 
+    userdata[user].recognised_word = word;
+    check_feature_progress(user);
+});
+
 
 function check_feature_progress(user) {
-    if ( Math.min.apply (Math,userdata[user].featuresdone) > userdata[user].analysed ) {
+    if ( (Math.min.apply (Math,userdata[user].featuresdone) > userdata[user].analysed ) && (userdata[user].recognised_word) ) {
 
 	// Analyse up to the new max point.
 	var maxpoint =  Math.min.apply (Math, userdata[user].featuresdone);
@@ -434,9 +440,12 @@ function check_feature_progress(user) {
 		    }
 		}
 		    
-				
+		
 		// Send a random number back, as we don't know of any better.
-		userdata[user].lastPacketRes.end( JSON.stringify({score: 5.0*Math.random(), msg: "<br>All " + userdata[user].lastpacketnr +" packets received!"}) );
+		userdata[user].lastPacketRes.end( JSON.stringify(
+		    {score: 5.0*Math.random(), 
+		     recognised_word: userdata[user].recognised_word,
+		     msg: "<br>All " + userdata[user].lastpacketnr +" packets received!"}) );
 		
 		clearUpload(user)
 	    }
