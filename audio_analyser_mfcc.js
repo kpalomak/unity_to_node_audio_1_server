@@ -15,7 +15,7 @@ var spawn = require('child_process').spawn;
 //var exec = require('child_process').exec;
 
 var feature_timeout_ms = 15000; // 15s 
-var DEBUG_TEXTS = true;
+var DEBUG_TEXTS = false;
 
 var sptk_path='/usr/local/bin/';
 
@@ -30,6 +30,8 @@ var outputbuffer = Buffer.concat([]);
 function compute_mfcc(audioconf, inputbuffer, targetbuffer, user, packetcode) {
 
     print_debug("============  MFCC COMPUTATION, HOW EXCITING!!! ==========");
+
+    DEBUG_TEXTS = audioconf.debug_mfcc;
 
     var frame_step_samples = audioconf.frame_step_samples;
     
