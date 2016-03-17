@@ -2,12 +2,12 @@
 using System.Collections;
 using System;
 using System.IO;
+using System.Text;
 
-
-public class test : MonoBehaviour {
+public class client_script : MonoBehaviour {
 
     // Variables for the game project:
-    String recUrl = "https://your-domain-here/siak-debug/asr";
+    String recUrl = "http://asr.aalto.fi/siak-debug/asr";
     String playername = "Foo";
     String playerpassword = "S(_)p3Rstr0Ng_p455w0RD";
     // if or when the server crashes during the game session, the password will
@@ -17,6 +17,8 @@ public class test : MonoBehaviour {
     int fs = 16000;
     int packetspersecond = 3;
     int maxAudioLen = 10;
+
+    string currentword = "choose";
 
     // Variables for recording:
     String micstring;
@@ -59,8 +61,16 @@ public class test : MonoBehaviour {
     // Update is called once per frame
     void Update() {
 
-        // Simple controls for recording with key "r" pressed down:   
+        if (Input.GetKeyUp(KeyCode.S)) {
+            startSession();
+        }
 
+        if (Input.GetKeyUp(KeyCode.D))
+        {
+            defineWord();
+        }
+
+        // Simple controls for recording with key "r" pressed down:   
         else if (Input.GetKeyDown(KeyCode.R) && micOn == false)
         {
             recstart = Environment.TickCount;
@@ -105,6 +115,7 @@ public class test : MonoBehaviour {
     void checkStartUpload()
     {
         int writeHead = Microphone.GetPosition(micstring);
+        //Debug.Log("writeHead: "+writeHead.ToString());    
 
         if ( aud && ( ( micOn && writeHead > samplessent + packetsize )|| finalpacket))
         {
@@ -135,6 +146,53 @@ public class test : MonoBehaviour {
 
     }
 
+    void startSession() {
+
+
+        WWWForm sessionStartForm = new WWWForm();
+
+        var customheaders = sessionStartForm.headers;
+
+        customheaders["X-siak-user"] = playername;
+        customheaders["X-siak-password"] = playerpassword;
+        customheaders["X-siak-packetnr"] = "-2";
+
+      	// Start the upload in a new thread:
+        StartCoroutine(patientlyStartSession(recUrl, customheaders));
+    }
+
+
+    void defineWord()
+    {
+
+
+        WWWForm sessionStartForm = new WWWForm();
+
+        var customheaders = sessionStartForm.headers;
+
+        customheaders["X-siak-user"] = playername;
+        customheaders["X-siak-password"] = playerpassword;
+        customheaders["X-siak-packetnr"] = "-1";
+        customheaders["X-siak-current-word"] = currentword;
+
+        // Start the upload in a new thread:
+        StartCoroutine(patientlyStartSession(recUrl, customheaders));
+    }
+
+
+
+
+    IEnumerator patientlyStartSession(String targetUrl, System.Collections.Generic.Dictionary<string,string> customheaders)
+    {
+        WWW wwwRec = new WWW(targetUrl, null, customheaders);
+
+        yield return wwwRec;
+
+        // Our answer from the server:
+        Debug.Log(wwwRec.text);
+    }
+
+
     void startUpload(int thispacketnr, bool thisfinalpacket, int startsample,  float[] samples)
     {
 	// Make a byte array of the float array:
@@ -155,6 +213,7 @@ public class test : MonoBehaviour {
         customheaders["X-siak-user"] = playername;
         customheaders["X-siak-password"] = playerpassword;
         customheaders["X-siak-packetnr"] = thispacketnr.ToString();
+        customheaders["X-siak-current-word"] = currentword;
 
         customheaders["X-siak-packet-arraystart"] = startsample.ToString();
  	customheaders["X-siak-packet-arrayend"] = (startsample+samples.Length).ToString();
@@ -163,10 +222,10 @@ public class test : MonoBehaviour {
 
         String uploadfilename= "Gamedata-"+playername+ "_"+thispacketnr.ToString();
 
-        audioForm.AddBinaryData("X-siak-game-data", bytesamples, uploadfilename);
+        //audioForm.AddBinaryData("X-siak-game-data", bytesamples, uploadfilename);
 
 	// Start the upload in a new thread:
-        StartCoroutine(patientlyUpload(recUrl, audioForm.data, customheaders));
+        StartCoroutine(patientlyUpload(recUrl, bytesamples, customheaders));
 
     }
 
@@ -174,7 +233,7 @@ public class test : MonoBehaviour {
     IEnumerator patientlyUpload(String targeturl, byte[] bytedata,  System.Collections.Generic.Dictionary<string,string> customheaders)
     {
 	// Uploading:
-        WWW wwwRec = new WWW(targeturl, bytedata, customheaders);
+        WWW wwwRec = new WWW(targeturl, Encoding.UTF8.GetBytes(Convert.ToBase64String(bytedata)), customheaders);
 
         yield return wwwRec;
 
