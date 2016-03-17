@@ -46,9 +46,9 @@ function SegmentationHandler(user) {
     // Piece of code to handle the theano NN-classifier running
     // on some port somewhere
 
-    SegmentationHandler.prototype.init_classification = function (phonecount) {
+    SegmentationHandler.prototype.init_classification = function () {
 
-	this.classifications = new Array(phonecount);
+	
 	
 
 	this.classified_count = 0;
@@ -68,11 +68,11 @@ function SegmentationHandler(user) {
 
 	console.log("INITIALISING CLASSIFIER <---------------- Look at this! -----------------------");
 	this.classifier.on('data', function(data) {
-	    console.log("Got "+Object.prototype.toString.call(data)+" of length "+ data.length+" in state "+that.state);
+	    // console.log("Got "+Object.prototype.toString.call(data)+" of length "+ data.length+" in state "+that.state);
 
 	    var returneddata = new Buffer( new Int32Array(data) );
 	    var msg = returneddata.readIntLE(0);
-	    console.log("Got message: " + msg);
+	    // console.log("Got message: " + msg);
 
 	    if (msg == got_phone_index || msg == 56) {
 		that.classifier.write( that.sizebuffer );
@@ -81,8 +81,7 @@ function SegmentationHandler(user) {
 		that.classifier.write( that.data_to_send.payload );
 	    }
 	    else if (msg == got_data || msg == 112) {
-		console.log("Python accepted data. We're happy and remove the phone data from queue.")
-
+		//console.log("Python accepted data. We're happy and remove the phone data from queue.")
 		index_and_payload = that.classifier_queue.splice(0,1)[0];
 	    }
 	    else if (msg == here_comes_answer || msg == 12) {
@@ -98,14 +97,14 @@ function SegmentationHandler(user) {
 
 		if (that.classified_count == that.classifications.length )
 		{
-		    console.log("We're done with this word!");
+		    //console.log("We're done with this word!");
 
 		    that.state = "done"; 
 		    that.classifier.end();            
 		}
 		else 
 		{
-		    console.log("Let's get ready for next word!");
+		    //console.log("Let's get ready for next word!");
 
 		    that.state = "ready_to_send";
 		    that.process_classifier_queue;
@@ -114,7 +113,7 @@ function SegmentationHandler(user) {
 	    }
 	});
 	this.classifier.on('end', function() {
-	    console.log('disconnected from server');
+	    console.log('disconnected from classification server');
 	});
 
     }
@@ -138,6 +137,7 @@ function SegmentationHandler(user) {
 		    //console.log("???????????? Packets in queue, let's send");
 		    this.state = "sending";
 		    this.data_to_send = this.classifier_queue[0];
+		    var that = this;
 		    this.classifier.write( this.data_to_send.index );
 		}
 	    }
@@ -150,7 +150,7 @@ function SegmentationHandler(user) {
 	    }
 	}
 	else {
-	    console.log("Segmenter not connected yet! (state="+this.state+")");
+	    console.log("Segmenter not connected! (state="+this.state+")");
 	}
     }
 
@@ -210,6 +210,9 @@ function SegmentationHandler(user) {
 	    });
 
 
+	    console.log("Setting the classification array length to: "+segmentation_array.length)
+	    this.classifications = new Array(segmentation_array.length);
+
 	    return segmentation_array;
 	}
 
@@ -237,6 +240,8 @@ function SegmentationHandler(user) {
 
     SegmentationHandler.prototype.calculate_statistics = function(segmentation_array, features, conf) {
 	
+	console.log("SegmentationHandler.calculate_statistics called!");
+
 	var statistics_array = [];
 
 	var dim = conf.dimensions;
@@ -299,8 +304,8 @@ function SegmentationHandler(user) {
 
 	    classifications = new Array(segmentation_array.length);
 	    
-	    console.log("segmentation_array:");
-	    console.log(segmentation_array);
+	    //console.log("segmentation_array:");
+	    //console.log(segmentation_array);
 
 	    var that = this;
 

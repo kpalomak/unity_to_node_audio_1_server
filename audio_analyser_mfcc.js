@@ -29,9 +29,10 @@ var outputbuffer = Buffer.concat([]);
 
 function compute_mfcc(audioconf, inputbuffer, targetbuffer, user, packetcode) {
 
-    print_debug("============  MFCC COMPUTATION, HOW EXCITING!!! ==========");
-
     DEBUG_TEXTS = audioconf.debug_mfcc;
+
+    print_debug("============  MFCC COMPUTATION FOR "+packetcode+", HOW EXCITING!!! ==========");
+
 
     var frame_step_samples = audioconf.frame_step_samples;
     
@@ -72,7 +73,7 @@ function compute_mfcc(audioconf, inputbuffer, targetbuffer, user, packetcode) {
 	    if (debug) {
 		fs.writeFileSync('upload_data/debug/mfcc_feature', outputbuffer);
 	    }	    
-	    print_debug('Emitting mfccDone');
+	    print_debug('Emitting mfccDone for packet '+packetcode);
 	    process.emit('mfccDone', user, packetcode);
 	}	
 	show_exit(exit_code, 'mfcc'); 
