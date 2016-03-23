@@ -20,5 +20,7 @@ window_length_samples=512;
 
 $sptk/frame -l $frame_length_samples -p $frame_step_samples <&0 | \
 $sptk/window -l $frame_length_samples -L $window_length_samples -w 1 |  \
-$sptk/lpc -l $window_length_samples -m $lsforder -f 0.001 | \
+$sptk/lpc -l $window_length_samples -m $lsforder | \
 $sptk/lpc2lsp -m $lsforder -s $lsflength
+
+# $sptk/lpc -l $window_length_samples -m $lsforder -f 0.001 | \

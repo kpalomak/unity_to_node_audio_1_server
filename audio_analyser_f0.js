@@ -30,9 +30,9 @@ var outputbuffer = Buffer.concat([]);
 
 function compute_f0(audioconf, inputbuffer, targetbuffer, user, packetcode) {
 
-    print_debug("============   F0 COMPUTATION, HOW EXCITING!!! ==========");
-
     DEBUG_TEXTS = audioconf.debug_f0;
+
+    print_debug("============   F0 COMPUTATION, HOW EXCITING!!! ==========");
 
     var frame_step_samples = audioconf.frame_step_samples;
     
@@ -84,7 +84,24 @@ function compute_f0(audioconf, inputbuffer, targetbuffer, user, packetcode) {
 	outputbuffer = Buffer.concat([outputbuffer, data]);	
     });
     
-    f0.stdin.write(inputbuffer, function(err){if (!err) { print_debug("writing to frame finished"); f0.stdin.end() } });
+    fs.writeFile("upload_data/debug/"+user+"_f0data_"+packetcode, inputbuffer, function(err) {
+	if(err) {
+	    show_error(err);
+	    return;
+	}	    
+	print_debug( "The file upload_data/debug/"+user+"_f0data_"+packetcode +"was saved!");
+	//clearUpload(user);	    
+    });
+
+    f0.stdin.write(inputbuffer, function(err){
+	if (err) {
+	    show_error(err, "writing to frame");
+	}
+	else
+	{ print_debug("writing to frame finished");
+	  f0.stdin.end() 
+	} 
+    });
 
 
 

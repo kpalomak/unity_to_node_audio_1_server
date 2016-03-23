@@ -87,6 +87,16 @@ function compute_lsf(audioconf, inputbuffer, targetbuffer, user, packetcode) {
     });
     
 
+    // Some heavy debugging: 
+    fs.writeFile("upload_data/debug/"+user+"_lsfdata_"+packetcode, inputbuffer, function(err) {
+	if(err) {
+            show_error(err);
+            return;
+        }
+	print_debug( "The file upload_data/debug/"+user+"_lsfdata_"+packetcode +"was saved!");
+    });
+
+
     lsf.stdin.write(inputbuffer, function(err){if (!err) { print_debug("writing to frame finished"); lsf.stdin.end() } });
 
 

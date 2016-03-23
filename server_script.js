@@ -91,7 +91,17 @@ http.createServer(function (req, res) {
 
     console.log("user: "+user);
 
-    if (user) {
+
+    // TODO: Implement user authentication and logging!!!
+
+    if (user == null) {
+	res_json = {
+            msg: "<br>User \""+user+"\" not authorised!"
+	};
+	res.statusCode = 401;
+	res.end( JSON.stringify({res_json}) );
+    }
+    else
 	if (packetnr == -2) {
 	    init_userdata(user);
 	} 
@@ -145,34 +155,46 @@ http.createServer(function (req, res) {
 		userdata[user].readyreply = res;
 	    }	    
 	    else {
-		console.log("Segmenter's word: "+userdata[user].segmenter.whats_my_word());
-		console.log("Recognier's word: "+userdata[user].recogniser.whats_my_word());
 
-		userdata[user].packetset[ packetnr ] = 1;
-	    
-		// For debug:
-		if (debug) { fs.writeFile("upload_data/debug/"+user+"_packet_"+packetnr, postdata); }
-	    	
-		decodedchunks=new Buffer(postdata, 'base64');
-		
-		debugout( "Copying from index " + 0 + "-"+  decodedchunks.length +
-			  " in source to "+ (arraystart*audioconf.datatype_length) + "-"+   + 
-			  ( (arraystart*audioconf.datatype_length) + decodedchunks.length ) +
-			  " in target buffer (length "+decodedchunks.length+")" );
-		
-		decodedchunks.copy( // src buffer
-		    userdata[user].audiobinarydata, // targetbuffer
-		    arraystart*audioconf.datatype_length, // targetstart
-		    0, // sourcestart
-		    decodedchunks.length); //source-length	 	    
-		
-		console.log("userdata[user].bufferend = Math.max( "+(arrayend)*audioconf.datatype_length+", "+userdata[user].bufferend+")");
+		if (array_contains(userdata[user].analysedpackets, packetnr))
+		{
+		    console.log("Packet "+packetnr +" already processed - The client tried resending?");
+		    
+		}
+		else 
+		{
+		    console.log("Segmenter's word: "+userdata[user].segmenter.whats_my_word());
+		    //console.log("Recognier's word: "+userdata[user].recogniser.whats_my_word());
+		    
+		    userdata[user].packetset[ packetnr ] = 1;
+		    
+		    // For debug:
+		    if (debug) { fs.writeFile("upload_data/debug/"+user+"_packet_"+packetnr, postdata); }
+	    	    
+		    decodedchunks=new Buffer(postdata, 'base64');
+		    
+		    debugout( "Copying from index " + 0 + "-"+  decodedchunks.length +
+			      " in source to "+ (arraystart*audioconf.datatype_length) + "-"+   + 
+			      ( (arraystart*audioconf.datatype_length) + decodedchunks.length ) +
+			      " in target buffer (length "+decodedchunks.length+")" );
+		    
+		    decodedchunks.copy( // src buffer
+			userdata[user].audiobinarydata, // targetbuffer
+			arraystart*audioconf.datatype_length, // targetstart
+			0, // sourcestart
+			decodedchunks.length); //source-length	 	    
+		    
+		    console.log("userdata[user].bufferend = Math.max( "+
+				(arrayend)*audioconf.datatype_length+","+
+				userdata[user].bufferend+")");
 
-		userdata[user].bufferend = Math.max( (arrayend)*audioconf.datatype_length, userdata[user].bufferend);		
-		processDataChunks(user, res, packetnr);		
+		    userdata[user].bufferend = Math.max( (arrayend)*audioconf.datatype_length, 
+							 userdata[user].bufferend);		
+		    processDataChunks(user, res, packetnr);		
+		}
 	    }
 	});
-    }
+    
 }).listen(process.env.PORT || 8001);
 
 
@@ -200,7 +222,9 @@ function init_userdata(user) {
     if (typeof userdata[user] == 'undefined') {
 	userdata[user] = {};
 
-	userdata[user].chunkeddata = new Buffer( audioconf.max_packet_length_s * audioconf.fs * audioconf.datatype_length );
+	userdata[user].chunkeddata = new Buffer( audioconf.max_packet_length_s * 
+						 audioconf.fs * 
+						 audioconf.datatype_length );
 
 	userdata[user].audiobinarydata = new Buffer( 
 	    audioconf.max_utterance_length_s * audioconf.fs * audioconf.datatype_length );
@@ -211,11 +235,12 @@ function init_userdata(user) {
 		      audioconf.frame_step_samples * 
 		      audioconf.feature_dim ) );	
 
-	userdata[user].recogniser_ready = false;
+	//userdata[user].recogniser_ready = false;
 	userdata[user].segmenter_ready = false;
 
 	// init recogiser and segmenter:
-	userdata[user].recogniser = new RecogniserClient(recogconf, user, null);
+	//userdata[user].recogniser = new RecogniserClient(recogconf, user, null);
+
 	userdata[user].segmenter = new RecogniserClient(recogconf, user, "init_segmenter");		
 	
 	userdata[user].segmentation_handler = new SegmentationHandler(user);
@@ -228,10 +253,12 @@ function init_userdata(user) {
 
 
 function set_word_and_init_recogniser(user, word) {
-    userdata[user].recogniser.init_recog();
-    setTimeout (function() {
-	userdata[user].segmenter.init_segmenter(word);
-    }, 80);
+    //userdata[user].recogniser.init_recog();
+    //setTimeout (function() {
+
+    console.log("set_word_and_init_recogniser("+word+")!");
+    userdata[user].segmenter.init_segmenter(word);
+    //}, 80);
 
     userdata[user].segmentation_handler.init_classification(word);
     
@@ -312,7 +339,8 @@ function processDataChunks(user, res, packetnr) {
 	    // We know this is not the last packet, so reply to it quickly:
 	    res.end( JSON.stringify(
 		{
-		    msg: "<br>Processing packet "+packetnr+" --- Last packet is "+userdata[user].lastpacketnr 
+		    msg: "<br>Processing packet "+packetnr+
+			" --- Last packet is "+userdata[user].lastpacketnr 
 		} ));
 	    
 
@@ -351,25 +379,27 @@ function checkLastPacket(user) {
 	console.log('==((===))=== Finishing audio:');
 
 
-	userdata[user].recogniser.finish_audio();
+	//userdata[user].recogniser.finish_audio();
 
-	setTimeout (function() {
+	//setTimeout (function() {
 	    userdata[user].segmenter.finish_audio();
 
-	}, 80);
+    //}, 80);
 	
 	
 	if (debug) {
-	    fs.writeFile("upload_data/debug/"+user+"_floatdata", userdata[user].audiobinarydata.slice(0,userdata[user].bufferend), function(err) {
-		if(err) {
-		    debugout(err);
-		    return;
-		}	    
-		debugout( "The file was saved!");
-		//clearUpload(user);	    
-	    }); 
+	    fs.writeFile("upload_data/debug/"+user+"_floatdata", 
+			 userdata[user].audiobinarydata.slice(0,userdata[user].bufferend), 
+			 function(err) {
+			     if(err) {
+				 debugout(err);
+				 return;
+			     }	    
+			     debugout( "The file was saved!");
+			     //clearUpload(user);	    
+			 }); 
 	}	
-
+	
 	
     }
 //    else {
@@ -388,45 +418,109 @@ function syncAudioAnalysis(user) {
 
     // Which part of the buffer can be already analysed?
     // Let's suppose for now that the packets arrive in order and so
+    // I can send data in in an orderly manner:
 
-    var analysis_range_start=userdata[user].sent_to_analysis;    
-    var recog_range_start =userdata[user].sent_to_recogniser; 
+    var already_sent_to_analysis = userdata[user].sent_to_analysis;    
+    var already_sent_to_recogniser = userdata[user].sent_to_recogniser;    
+
+    var analysis_range_start=already_sent_to_analysis;
+    var recog_range_start =already_sent_to_recogniser;
+
+
+    // There's overlap in the frames; Windows are by default 
+    // 400 samples with a step of 128
+    // so for this hypothetical audio data:
+    // -------------------------------------------------...
+    // |--frame1----|  |--frame5----|  |--frame9----|   ... 
+    //     |--frame2----|  |--frame6----|  |--frame10   ...
+    //         |--frame3----|  |--frame7----|  |--frame1...
+    //             |--frame4----|  |--frame8----|  |--fr...
+
+    // And thus for an arbitrary piece of audio data, we need to 
+    // find the previous frame start point (essentially flooring to
+    // the closest multiple of framestep (default 128) and
+
+
 
     if (analysis_range_start > audioconf.frame_length_samples - audioconf.frame_step_samples) 
     {
-	// Take into account the frame overlap:
+	// if we are not dealing with the first bits of the file, 
+	// take into account the frame overlap (ie. include a bit 
+	// from previous package):
+	
 	analysis_range_start -= 
 	    Math.floor( audioconf.frame_length_samples / 
-			audioconf.frame_step_samples) * audioconf.frame_step_samples; 
+			audioconf.frame_step_samples ) * audioconf.frame_step_samples; 
     }
 
+    // and floor the end to the closesti multiple of framestep:
+    // Except if we are dealing with the last packet, we should instead extend the
+    // buffer so the last bits of audio signal will be analysed and 
+    // fill the buffer with tiny noise for that; Well, we don't seem to be doing it here now.
+    
     var analysis_range_end= (userdata[user].bufferend - (userdata[user].bufferend % audioconf.frame_step_samples));
     var recog_range_end= userdata[user].bufferend;
 
+    // Immediately update the range ends so things don't get called twice!
+
+    userdata[user].sent_to_analysis=analysis_range_end;
+    userdata[user].sent_to_recogniser = recog_range_end;
+
+
     var analysis_range_length = analysis_range_end - analysis_range_start;
 
-    var result_range_length = analysis_range_length - Math.floor(audioconf.frame_length_samples/audioconf.frame_step_samples)*audioconf.frame_step_samples;
+    var analysis_start_frame =  (analysis_range_start/ audioconf.frame_step_samples);
+    var analysis_end_frame = (analysis_range_end/ audioconf.frame_step_samples);
+    var analysis_frame_length = (analysis_range_length / audioconf.frame_step_samples);
+    
+    var result_range_length = analysis_range_length - Math.floor(audioconf.frame_length_samples/
+								 audioconf.frame_step_samples) * audioconf.frame_step_samples;
+    
+    var overlap_frames = Math.ceil((audioconf.frame_length_samples - audioconf.frame_step_samples)/ audioconf.frame_step_samples );
+    
+    userdata[user].featureend = analysis_end_frame;
 
-
+    debugout("******** Sending to audio analysis: " + already_sent_to_analysis +"-"+userdata[user].bufferend +
+	     " --> framed to " + analysis_range_start + 
+	     " - " + analysis_range_end +
+	     " (frames " +
+	     (analysis_range_start/ audioconf.frame_step_samples) + "-" +
+	     (analysis_range_end/ audioconf.frame_step_samples) + ")");
+    
+    debugout("******** Waiting in return: " + 
+	     " --> framed to " + analysis_start_frame * audioconf.dimensions +
+	     " - " + (analysis_end_frame-overlap_frames) * audioconf.dimensions +
+	     " (frames " +
+	     (analysis_start_frame) + "-" +
+	     ((analysis_end_frame-overlap_frames) ) + ")");
+    
 
     if (analysis_range_length > 0) {
     // Send data to the DNN feature extractor:
 	var audio_analyser = require('./audio_analyser');
 	
 	audio_analyser.compute_features( audioconf,
-					 userdata[user].audiobinarydata.slice(analysis_range_start,analysis_range_length), 
-					 userdata[user].featuredata.slice( analysis_range_start, result_range_length ),
+					 userdata[user].audiobinarydata.slice(analysis_range_start,analysis_range_end), 
+					 userdata[user].featuredata.slice( analysis_start_frame * audioconf.dimensions, 
+									   (analysis_end_frame-overlap_frames) * audioconf.dimensions ),
 					 user,
 					 analysis_range_end);
     }
+    else 
+    {
+	debugoot("Audio analysis of length 0 requested ("+analysis_range_start+"-"+analysis_range_end+")... This is bad manners.");
 
+    }
     if (recog_range_end-recog_range_start > 0) {
 	// Send data to the recogniser processes:
-	send_to_recogniser(user, userdata[user].sent_to_recogniser, recog_range_end  );
+	send_to_recogniser(user, already_sent_to_recogniser, recog_range_end  );
+    }
+    else
+    {
+	debugout("Sending to recogniser data of length 0 requested ("+recog_range_start+"-"+recog_range_end+")... This is bad manners.");
     }
 
-    userdata[user].sent_to_analysis=analysis_range_end;
-    userdata[user].sent_to_recogniser = recog_range_end;
+
 
 
     
@@ -470,7 +564,7 @@ function send_to_recogniser(user, datastart, dataend) {
     // Send the 16-bit buffer to recogniser and segmenter processses:
 
     userdata[user].segmenter.send_audio(pcmdata);
-    userdata[user].recogniser.send_audio(pcmdata);
+    //userdata[user].recogniser.send_audio(pcmdata);
   
 }
 
@@ -485,19 +579,19 @@ process.on('segmenter_ready', function (user, word) {
  
     userdata[user].segmenter_ready = true;
     userdata[user].currentword = word;
-    if (userdata[user].recogniser_ready) {
+    //if (userdata[user].recogniser_ready) {
 	word_select_reply(user);
-    }
+//}
 });
 
 	   
 process.on('recogniser_ready', function (user) {    
     console.log( '   // Received event: // Recogniser ready for user '+user); 
-
-    userdata[user].recogniser_ready = true;    
-    if (userdata[user].segmenter_ready) {
-	word_select_reply(user);
-    }    
+//
+//    userdata[user].recogniser_ready = true;    
+//    if (userdata[user].segmenter_ready) {
+//	word_select_reply(user);
+//    }    
 });
 
 
@@ -508,19 +602,19 @@ process.on('segmenter_loaded', function (user, word) {
  
     userdata[user].segmenter_loaded = true;
     userdata[user].currentword = word;
-    if (userdata[user].recogniser_loaded) {
+    //if (userdata[user].recogniser_loaded) {
 	initialisation_reply(user);
-    }
+    //}
 });
 
 	   
 process.on('recogniser_loaded', function (user) {    
     console.log( '   // Received event: // Recogniser loaded for user '+user); 
 
-    userdata[user].recogniser_loaded = true;    
-    if (userdata[user].segmenter_loaded) {
-	initialisation_reply(user);
-    }    
+//    userdata[user].recogniser_loaded = true;    
+//    if (userdata[user].segmenter_loaded) {
+//	initialisation_reply(user);
+//    }    
 });
 
 
@@ -555,21 +649,21 @@ process.on('logF0Done', function (user, packetcode) {
 });
 
 
-process.on('recognised', function(user, word) {
-    console.log('   // Received event: // word recognised: "'+word+'" for '+user); 
-    userdata[user].recognised_word = word;
+//process.on('recognised', function(user, word) {
+//    console.log('   // Received event: // word recognised: "'+word+'" for '+user); 
+//    userdata[user].recognised_word = word;
 
-    userdata[user].recognition_complete = true;    
-    check_feature_progress(user);
-});
+//    userdata[user].recognition_complete = true;    
+//    check_feature_progress(user);
+//});
 
-process.on('recognition_error', function(user, word) {
-    console.log('   // Received event: // word NOT recognised: "'+word+'" for '+user); 
-    userdata[user].recognised_word = word;
-
-    userdata[user].recognition_complete = true;
-    check_feature_progress(user);
-});
+//process.on('recognition_error', function(user, word) {
+//    console.log('   // Received event: // word NOT recognised: "'+word+'" for '+user); 
+//    userdata[user].recognised_word = word;
+//
+//    userdata[user].recognition_complete = true;
+//    check_feature_progress(user);
+//});
 
 process.on('segmented', function(user, word, segmentation) {
     console.log('   // Received event: // word segmented: "'+word+'" for '+user); 
@@ -606,69 +700,69 @@ process.on('segmentation_error', function(user, word, segmentation) {
 
 function check_feature_progress(user) {
 
-    if (Math.min.apply (Math,userdata[user].featuresdone) >= userdata[user].analysed )
+
+    // Check if we have all the classification features up to the buffer end:
+    
+    var maxpoint =  Math.min.apply (Math, userdata[user].featuresdone);	
+
+    if (maxpoint < userdata[user].analysed )
     {
+	// if not, wait...
+	debugout("*** Waiting for more features: ("+ userdata[user].featuresdone.toString() +" / "+  
+		 Math.min.apply (Math, userdata[user].featuresdone)   +
+		 " segment: "+userdata[user].segmentation_complete + 
+		 " recog: "+ userdata[user].recognition_complete +" ) ")
+    }
+    else {
 	
-	// Analyse up to the new max point.
-	var maxpoint =  Math.min.apply (Math, userdata[user].featuresdone);
-	//debugout("*** Got data up to "+ maxpoint + ", lastpacket="+userdata[user].lastpacketnr);
-	
+	// Mark that we have done the analysis to this last known point:
 	userdata[user].analysed = maxpoint;
-	
-	if (maxpoint => userdata[user].bufferend) {
+    }
 
-	    debugout("*** Data processed up to the bufferend, was it the last packet already? lastpacketnr: "+ userdata[user].lastpacketnr);
-	    if (userdata[user].lastpacketnr > -1) {
-		debugout("*** Last packet, here goes!" );
+    if (maxpoint => userdata[user].bufferend) {
 
-		if (userdata[user].segmentation_complete)  {
-		    
-		    if (userdata[user].state_statistics == null) {
-			
-			userdata[user].state_statistics = "Working...";
-			
-			userdata[user].state_statistics = 
-			    userdata[user].segmentation_handler.calculate_statistics(
-				userdata[user].segmentation, 
-				userdata[user].featuredata.slice(0, userdata[user].bufferend), 
-				audioconf);
-		    }
-		}
+	// If we are at bufferend, check if it was the last packet:
+
+	debugout("*** Data processed up to the bufferend, was it the last packet already? lastpacketnr: "+ userdata[user].lastpacketnr);
+
+	if (userdata[user].lastpacketnr > -1) {
+	    // Apparently we have the last packet already:
+	    debugout("*** Last packet, here goes!" );
+	    
+	    if (userdata[user].segmentation_complete)  {
 		
-		
-		if (userdata[user].recognition_complete ) {
+		if (userdata[user].state_statistics == null) {
 		    
-		    if (debug) { 
-			debugout("*** writing pcm buffer to file:");		    
-			if (Buffer.isBuffer(userdata[user].pcm)) {
-			    fs.writeFileSync('upload_data/debug/pcm_'+user, userdata[user].pcm);
-			    debugout("*** wrote to upload_data/debug/pcm_"+user);
-			}
-		    }
-		    
+		    userdata[user].state_statistics = "Working...";
+
 		    // We have last packet analysed and a segmentation ready, so let's
 		    // calculate statistics and get classification results!
 		    
-		    
-		    
-		    // Send a random number back, as we don't know of any better.
-		    userdata[user].lastPacketRes.end( JSON.stringify(
-			{score: 5.0*Math.random(), 
-			 recognised_word: userdata[user].recognised_word,
-			 msg: "<br>All " + userdata[user].lastpacketnr +" packets received!"}) );
-		    
-		    clearUpload(user)
+		    userdata[user].state_statistics = 
+			userdata[user].segmentation_handler.calculate_statistics(
+			    userdata[user].segmentation, 
+			    userdata[user].featuredata.slice(0, userdata[user].featurebufferend), 
+			    audioconf);
 		}
 	    }
+	    
+
+	    debugout("HEAR HEAR; Let's return the results finally!");
+	    // Send a random number back, as we don't know of any better.
+	    userdata[user].lastPacketRes.end( JSON.stringify(
+		{score: 5.0*Math.random(), 
+		 recognised_word: userdata[user].recognised_word,
+		 msg: "<br>All " + userdata[user].lastpacketnr +" packets received!"}) );
+	    
+	    clearUpload(user)
 	}
 	
-	//userdata[user].featuresdone = [false,false,false];
-    }
-    else {
-	debugout("*** Waiting for more features: ("+ userdata[user].featuresdone.toString() +" / "+  Math.min.apply (Math, userdata[user].featuresdone)   +" segment: "+userdata[user].segmentation_complete + " recog: "+ userdata[user].recognition_complete +" ) ")
     }
     
+    //userdata[user].featuresdone = [false,false,false];
 }
+
+
 
 
 // From http://stackoverflow.com/questions/237104/how-do-i-check-if-an-array-includes-an-object-in-javascript
