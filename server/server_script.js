@@ -17,11 +17,12 @@ var debug = require('debug');
 
 var http = require('http');
 var util = require('util');
-
+var url = require('url');
 
 var fs = require('fs');
 
 var logging = require('./logging');
+
 
 // Events needed for data processing:
 //var events = require('events');
@@ -42,6 +43,7 @@ var audioconf = {
     'fs'                     : 16000,
     'max_utterance_length_s' : 10,
     'max_packet_length_s'    : 1,
+    'packets_per_second'     : 3,
     'datatype_length'        : 4,
     'frame_step_samples'     : 128,
     'frame_length_samples'   : 400,
@@ -82,20 +84,109 @@ function debugout(msg) {
 }
 
 
+/*
+ *
+ *     USER CONTROL
+ * 
+ */
+
+
+//
+// Extremely lazy user control!
+// 
+// Keep in mind this is not a production system
+// in any way!
+
+
+var user_credential_file = './users.json';
+
+var passwords = JSON.parse(fs.readFileSync(user_credential_file, 'utf8'));
+
+function authenticate(req, res, callback) {
+    username = req.headers['x-siak-user'];
+    password = req.headers['x-siak-password'];
+
+    console.log("Authenticating >"+username + "< >" + password +"<!");    
+
+    if (!passwords.hasOwnProperty(username)) {
+	console.log('users does not contain '+user);
+	err= { error: 101,
+		 msg: "unknown username"
+	       }
+    }
+    else if (passwords[username] != password) {
+	console.log('password for '+username +' is not '+ password + ' (should be '+passwords[username]+" )");
+	err= { error: 102,
+		 msg: "username and password do not match"
+	       }	
+    }
+    else
+	err = null;
+    
+    callback( err, username, req, res );
+
+}
+
+
+
+
+
+/*
+ *
+ *     SUPER-BASIC SERVER LOGIC
+ * 
+ */
+
+
+
 
 http.createServer(function (req, res) {
 
+    //console.log(req);
 
-    debugout('Request received: ');
-    
     res.setHeader('Content-Type', 'application/json');
 
+    authenticate(req, res,
+		 function (err, username, req, res) {
+		     if (err) {
+			 console.log("user "+username + " password NOT ok!");
+			 res.statusCode = 401;
+			 res.end( JSON.stringify({err}) );			 
+		     }
+		     else {
+			 console.log("user "+username + " password ok!");
+			 if (req.url == "/asr") 
+			 {
+			     operate_recognition (req, res);
+			 }
+			 if (req.url == "/log-action")
+			 {
+			     log_action(req, res);
+			 }
+			 else if (req.url == "/login")
+			 {
+			     log_login(req, res);
+			 }
+			 else if (req.url == "/logout")
+			 {
+			     log_logout(req, res);
+			 }
+		     }
+		 });
 
-    //util.log(util.inspect(req)) // this line helps you inspect the request so 
-                                  // you can see whether the data is in the url (GET) 
-                                  // or the req body (POST)
-    //util.log('Request recieved: \nmethod: ' + req.method + '\nurl: ' + req.url) // this line logs just the method and url
+}).listen(process.env.PORT || 8001);
 
+
+
+
+/*
+ *
+ *     A BIT MORE COMPLEX SERVER LOGIC: RECEIVING AUDIO
+ * 
+ */
+
+
+var operate_recognition = function (req,res) {
     user = req.headers['x-siak-user'];
     packetnr = req.headers['x-siak-packetnr'];
 
@@ -105,11 +196,7 @@ http.createServer(function (req, res) {
     // TODO: Implement user authentication and logging!!!
 
     if (user == null) {
-	res_json = {
-            msg: "<br>User \""+user+"\" not authorised!"
-	};
-	res.statusCode = 401;
-	res.end( JSON.stringify({res_json}) );
+	dummy = 1;
     }
     else
 	if (packetnr == -2) {
@@ -211,7 +298,7 @@ http.createServer(function (req, res) {
 	    }
 	});
     
-}).listen(process.env.PORT || 8001);
+}
 
 
 debugout('Server running on port '+ (process.env.PORT || 8001) );
@@ -426,6 +513,12 @@ function checkLastPacket(user) {
 
 
 
+/*
+ *
+ *     EVEN MORE COMPLEX SERVER LOGIC: AUDIO ANALYSIS
+ * 
+ */
+
 
 
 
@@ -587,8 +680,14 @@ function send_to_recogniser(user, datastart, dataend) {
 
 
 
+/*
+ *
+ *     BACK TO BASICS: EVENTS
+ * 
+ */
 
-/* EVENTS */
+
+
 
 
 process.on('user_event', function(user, wordid, eventname, eventdata) {
@@ -732,8 +831,11 @@ function check_feature_progress(user) {
 function calc_score_and_send_reply(user) {
 
     debugout("HEAR HEAR; Let's return the results finally!");
+
     // Send a random number back, as we don't know of any better.
     wordscore =  Math.round(5.0*Math.random());
+
+
     
     userdata[user].lastPacketRes.end( JSON.stringify(
 	{score: wordscore, 

@@ -1,0 +1,14 @@
+{
+  "name": "siak-server",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "start": "node app.js"
+  },
+  "dependencies": {
+    "bson": "^0.4.22",
+    "longjohn": "^0.2.11",
+    "mongodb": "~2.0.33",
+    "monk": "~1.0.1"
+  }
+}
