@@ -4,19 +4,27 @@ using System;
 using System.IO;
 using System.Text;
 
+using SimpleJSON;
+
 public class client_script : MonoBehaviour {
 
     // Variables for the game project:
     String recUrl = "http://asr.aalto.fi/siak-debug/asr";
-    String playername = "Foo";
-    String playerpassword = "S(_)p3Rstr0Ng_p455w0RD";
+    String logUrl = "http://asr.aalto.fi/siak-debug/log-action";
+    String loginUrl = "http://asr.aalto.fi/siak-debug/login";
+    String logoutUrl = "http://asr.aalto.fi/siak-debug/logout";
+
+    String playername = "foo";
+    String playerpassword = "bar";
+
+    
     // if or when the server crashes during the game session, the password will
     // be useful to avoid logging in again. Should be strongly encrypted in https anyway!
 
     // Variables for defining audio:
     int fs = 16000;
     int packetspersecond = 3;
-    int maxAudioLen = 10;
+    int maxAudioLen = 10; 
 
     string currentword = "choose";
 
@@ -58,6 +66,13 @@ public class client_script : MonoBehaviour {
 
     }
 
+
+    //
+    //
+    //  This bit should be replaced by commands coming from 
+    //  the game engine. Now how would we do that?
+    //
+    // 
     // Update is called once per frame
     void Update() {
 
@@ -146,34 +161,26 @@ public class client_script : MonoBehaviour {
 
     }
 
-    void startSession() {
-
+    void startSession()
+    {
 
         WWWForm sessionStartForm = new WWWForm();
 
         var customheaders = sessionStartForm.headers;
-
-        customheaders["X-siak-user"] = playername;
-        customheaders["X-siak-password"] = playerpassword;
-        customheaders["X-siak-packetnr"] = "-2";
+        customheaders = addCustomHeaders(customheaders, "-2", null);
 
       	// Start the upload in a new thread:
         StartCoroutine(patientlyStartSession(recUrl, customheaders));
+
+        return ;
     }
 
 
     void defineWord()
     {
-
-
         WWWForm sessionStartForm = new WWWForm();
 
-        var customheaders = sessionStartForm.headers;
-
-        customheaders["X-siak-user"] = playername;
-        customheaders["X-siak-password"] = playerpassword;
-        customheaders["X-siak-packetnr"] = "-1";
-        customheaders["X-siak-current-word"] = currentword;
+        var customheaders = addCustomHeaders(sessionStartForm.headers, "-1", currentword);
 
         // Start the upload in a new thread:
         StartCoroutine(patientlyStartSession(recUrl, customheaders));
@@ -184,12 +191,17 @@ public class client_script : MonoBehaviour {
 
     IEnumerator patientlyStartSession(String targetUrl, System.Collections.Generic.Dictionary<string,string> customheaders)
     {
-        WWW wwwRec = new WWW(targetUrl, null, customheaders);
+        WWW wwwResponse = new WWW(targetUrl, null, customheaders);
 
-        yield return wwwRec;
+        yield return wwwResponse;
+
+        var audioconf = JSON.Parse(wwwResponse.text);
+        fs = Convert.ToInt32(audioconf["fs"]);
+        packetspersecond = Convert.ToInt32(audioconf["packets_per_second"]);
+        maxAudioLen = Convert.ToInt32(audioconf["max_utterance_length_s"]); 
 
         // Our answer from the server:
-        Debug.Log(wwwRec.text);
+        //Debug.Log(wwwResponse.text);
     }
 
 
@@ -205,30 +217,32 @@ public class client_script : MonoBehaviour {
         var bytesamples = new byte[(samples.Length*4)];
         Buffer.BlockCopy(samples, 0, bytesamples, 0, samples.Length*4);
       
-
         WWWForm audioForm = new WWWForm();
 
         var customheaders = audioForm.headers;
-
-        customheaders["X-siak-user"] = playername;
-        customheaders["X-siak-password"] = playerpassword;
-        customheaders["X-siak-packetnr"] = thispacketnr.ToString();
-        customheaders["X-siak-current-word"] = currentword;
+        addCustomHeaders(customheaders, thispacketnr.ToString(), currentword);
 
         customheaders["X-siak-packet-arraystart"] = startsample.ToString();
- 	customheaders["X-siak-packet-arrayend"] = (startsample+samples.Length).ToString();
-	customheaders["X-siak-packet-arraylength"] = (samples.Length).ToString();
+ 	    customheaders["X-siak-packet-arrayend"] = (startsample+samples.Length).ToString();
+    	customheaders["X-siak-packet-arraylength"] = (samples.Length).ToString();
         customheaders["X-siak-final-packet"] = finalpacket == true ? "true" : "false";
 
-        String uploadfilename= "Gamedata-"+playername+ "_"+thispacketnr.ToString();
-
-        //audioForm.AddBinaryData("X-siak-game-data", bytesamples, uploadfilename);
-
-	// Start the upload in a new thread:
+    	// Start the upload in a new thread:
         StartCoroutine(patientlyUpload(recUrl, bytesamples, customheaders));
-
     }
 
+
+    IEnumerator doSomeLogging(String actionName)
+    {
+        WWWForm loggingForm = new WWWForm();
+
+        var customheaders = addCustomHeaders(loggingForm.headers, null, null);
+        customheaders["X-siak-game-action"] = actionName;
+
+        WWW wwwRec = new WWW(logUrl, null, customheaders);
+
+        yield return wwwRec;
+    }
 
     IEnumerator patientlyUpload(String targeturl, byte[] bytedata,  System.Collections.Generic.Dictionary<string,string> customheaders)
     {
@@ -241,4 +255,21 @@ public class client_script : MonoBehaviour {
         Debug.Log(wwwRec.text);
     }
 
+    System.Collections.Generic.Dictionary<string,string> addCustomHeaders(System.Collections.Generic.Dictionary<string,string>customheaders, String packetnr, String word) {
+
+        customheaders["X-siak-user"] = playername;
+        customheaders["X-siak-password"] = playerpassword;
+        customheaders["X-siak-level"] = "1";
+        customheaders["X-siak-region"] = "2";
+
+        
+
+        if (packetnr != null)
+            customheaders["X-siak-packetnr"] = "-2";
+
+        if (word != null)
+            customheaders["X-siak-current-word"] = currentword;
+        
+        return customheaders;
+    }
 }
