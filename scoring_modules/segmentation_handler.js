@@ -22,6 +22,10 @@ function SegmentationHandler(user) {
 
     this.user = user;
 
+    this.word = null;
+
+    this.word_id = null;
+
     this.classifications = [];
 
     this.classifier_queue = [];
@@ -98,9 +102,12 @@ function SegmentationHandler(user) {
 		if (that.classified_count == that.classifications.length )
 		{
 		    //console.log("We're done with this word!");
-
+		   		    
 		    that.state = "done"; 
 		    that.classifier.end();            
+
+		    process.emit('user_event', that.user, that.word_id, 'classification_done', {classification:that.classifications});
+
 		}
 		else 
 		{
@@ -238,8 +245,13 @@ function SegmentationHandler(user) {
 
 
 
-    SegmentationHandler.prototype.calculate_statistics = function(segmentation_array, features, conf) {
+    SegmentationHandler.prototype.calculate_statistics = function(word, word_id,segmentation_array, features, conf) {
 	
+	this.word = word;
+
+	this.word_id = word_id;
+
+
 	console.log("SegmentationHandler.calculate_statistics called!");
 
 	var statistics_array = [];

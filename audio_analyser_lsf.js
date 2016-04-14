@@ -28,7 +28,7 @@ if (debug) {
 var outputbuffer = Buffer.concat([]);
 
 
-function compute_lsf(audioconf, inputbuffer, targetbuffer, user, packetcode) {
+function compute_lsf(audioconf, inputbuffer, targetbuffer, user, word_id, packetcode) {
 
     print_debug("============   LSF COMPUTATION, HOW EXCITING!!! ==========");
 
@@ -55,7 +55,7 @@ function compute_lsf(audioconf, inputbuffer, targetbuffer, user, packetcode) {
     var lsf = spawn(lsf_command, lsf_args);
     
     lsf.stderr.on('data',  function(err)  { show_error(err.toString(), 'lsf stderr'); 
-					    process.emit('lsfDone', user, packetcode); });
+					    process.emit('user_event', user, word_id, 'lsfDone', {packetcode:packetcode}); });
 
     lsf.on('error',  function(err)  { show_error(err, 'lsf on error'); });
     
@@ -64,7 +64,7 @@ function compute_lsf(audioconf, inputbuffer, targetbuffer, user, packetcode) {
     lsf.on('exit',  function(exit_code)  {
 	if (exit_code == 0) {
 	    // Write to designated outputbuffer
-	    print_debug('mfcc analysis done; Data length: '+outputbuffer.length);
+	    print_debug(' lsf analysis done; Data length: '+outputbuffer.length);
 
 	    var m = lsf_start*4;
 	    for (var n=0; n<outputbuffer.length; n+=4) {
@@ -75,7 +75,8 @@ function compute_lsf(audioconf, inputbuffer, targetbuffer, user, packetcode) {
 		fs.writeFileSync('upload_data/debug/lsf_feature', outputbuffer);
 	    }	    
 	    print_debug('Emitting lsfDone');
-	    process.emit('lsfDone', user, packetcode);
+	    process.emit('user_event', user, word_id, 'lsfDone', {packetcode:packetcode});
+
 	}	
 	show_exit(exit_code, 'lsf'); 
     });

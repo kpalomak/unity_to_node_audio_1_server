@@ -27,7 +27,7 @@ if (debug) {
 
 var outputbuffer = Buffer.concat([]);
 
-function compute_mfcc(audioconf, inputbuffer, targetbuffer, user, packetcode) {
+function compute_mfcc(audioconf, inputbuffer, targetbuffer, user, word_id, packetcode) {
 
     DEBUG_TEXTS = audioconf.debug_mfcc;
 
@@ -54,7 +54,8 @@ function compute_mfcc(audioconf, inputbuffer, targetbuffer, user, packetcode) {
 
     var mfcc = spawn(mfcc_command, mfcc_args);
     
-    mfcc.stderr.on('data',  function(err)  { show_error(err.toString(), 'mfcc stderr'); });
+    mfcc.stderr.on('data',  function(err)  { show_error(err.toString(), 'mfcc stderr');
+					     process.emit('user_event', user, word_id, 'mfccDone', {packetcode:packetcode}); });
 
     mfcc.on('error',  function(err)  { show_error(err, 'mfcc on error'); });
     
@@ -74,7 +75,8 @@ function compute_mfcc(audioconf, inputbuffer, targetbuffer, user, packetcode) {
 		fs.writeFileSync('upload_data/debug/mfcc_feature', outputbuffer);
 	    }	    
 	    print_debug('Emitting mfccDone for packet '+packetcode);
-	    process.emit('mfccDone', user, packetcode);
+	    process.emit('user_event', user, word_id, 'mfccDone', {packetcode:packetcode}); 
+
 	}	
 	show_exit(exit_code, 'mfcc'); 
     });

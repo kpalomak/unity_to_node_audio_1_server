@@ -27,7 +27,8 @@ function RecogniserClient (conf, user, segmentword) {//(conf, user, segmentword)
     
     this.sending_data = false;	
     this.word_to_be_segmented = null;	
-    
+    this.word_id = 13;
+
     this.eventEmitter = new events.EventEmitter();	
     
     this.user = user;
@@ -75,13 +76,13 @@ function RecogniserClient (conf, user, segmentword) {//(conf, user, segmentword)
 
 	    else if (that.state == 'grammar-def') {		
 		if (that.word_to_be_segmented != null) {
-		    process.emit('segmenter_loaded', that.user, that.word_to_be_segmented);
+		    process.emit('user_event', that.user, that.word_id, 'segmenter_loaded', {word:that.word_to_be_segmented});
 		    console.log(' --> Next we want to define_word');
 		    that.state = 'segmenter_loaded';
 		}
 		else {
 		    console.log(' --> Next we want to start_recog');
-		    process.emit('recogniser_loaded', that.user, that.word_to_be_segmented);
+		    process.emit('user_event', that.user, that.word_id, 'recogniser_loaded',{word:that.word_to_be_segmented});
 		    that.state = 'recog_loaded';
 		}
 	    }
@@ -89,13 +90,13 @@ function RecogniserClient (conf, user, segmentword) {//(conf, user, segmentword)
 	    else if (that.state == 'word-def') {
 		console.log(' --> let\s go segment!');
 		that.state = 'segment';
-		process.emit('segmenter_ready', that.user, that.word_to_be_segmented);
+		process.emit('user_event', that.user, that.word_id, 'segmenter_ready',{word:that.word_to_be_segmented});
 		//initcallback(res);
 	    }
 	    else if (that.state == 'start_recog') {
 		console.log(' --> let\'s go recognise!');
 		that.state = 'recognise';
-		process.emit('recogniser_ready', that.user);
+		process.emit('user_event', that.user, that.word_id, 'recogniser_ready',{word:that.word_to_be_segmented});
 
 		//initcallback(res);
 	    }
@@ -106,11 +107,11 @@ function RecogniserClient (conf, user, segmentword) {//(conf, user, segmentword)
 	    if (arr[1].substr(0,20) == 'Completion-Cause:000') {
 		/*this.*/word = arr[4];
 		console.log("### Recognised \""+word+"\" ###");
-		process.emit('recognised',that.user, word);
+		process.emit('user_event', that.user, that.word_id, 'recognised',{word:that.word_to_be_segmented});
 	    }
 	    else {
 		console.log("Something went wrong: \n"+data);
-		process.emit('recognition_error',that.user, null);
+		process.emit('user_event', that.user, that.word_id, 'recognition_error',{word:that.word_to_be_segmented});
 
 	    }
 	    that.client.pause();
@@ -124,11 +125,11 @@ function RecogniserClient (conf, user, segmentword) {//(conf, user, segmentword)
 	    if (arr[1].substr(0,20) == 'Completion-Cause:000') {
 		/*this.*/segmentation = arr[4];
 		console.log("### Segmented \""+segmentation+"\" ###");
-		process.emit('segmented',that.user, that.word_to_be_segmented, segmentation);
+		process.emit('user_event', that.user, that.word_id, 'segmented',{word:that.word_to_be_segmented});
 	    }
 	    else {
 		console.log("Something went wrong: \n"+data);
-		process.emit('segmentation_error',that.user, that.word_to_be_segmented, null);
+		process.emit('user_event', that.user, that.word_id, 'segmentation_error',{word:that.word_to_be_segmented});
 	    }
 	    that.client.pause();
 	    //that.state = 'word-def';
@@ -163,9 +164,10 @@ function RecogniserClient (conf, user, segmentword) {//(conf, user, segmentword)
 
 
        
-    RecogniserClient.prototype.init_segmenter = function (word) {
+    RecogniserClient.prototype.init_segmenter = function (word, word_id) {
 	console.log("************************************************************************ start_segment!");
 	this.word_to_be_segmented = word;
+	this.word_id = word_id;
 	this.state = 'word-def';
 	this.client_type = 'segmenter';
 
@@ -233,8 +235,8 @@ function RecogniserClient (conf, user, segmentword) {//(conf, user, segmentword)
 	console.log(" =================> Trying to define current word as "+word);
 
 	var current_port = this.client.address().port;
-
-	console.log(current_port + " ("+this.client_type+") =================> Trying to define current word as "+word);
+	
+	console.log(current_port + " ("+this.client_type+") =================> Trying to define current word as "+word + " (word_id "+this.word_id+")");
 	if (this.connected) {
 	    this.client.write( 
 		mrcp_message (
@@ -302,6 +304,10 @@ function RecogniserClient (conf, user, segmentword) {//(conf, user, segmentword)
     
     RecogniserClient.prototype.whats_my_word = function() {
 	return this.word_to_be_segmented;
+    }
+
+    RecogniserClient.prototype.whats_my_word_id = function() {
+	return this.word_id;
     }
 
 

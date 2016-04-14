@@ -22,7 +22,7 @@ var exec = require('child_process').exec;
 
 var feature_timeout_ms = 15000; // 15s 
 var DEBUG_TEXTS = true;
-var streamifier = require('streamifier');
+//var streamifier = require('streamifier');
 
 var sptk_path='/usr/local/bin/';
 
@@ -41,7 +41,7 @@ var lsf_analysis = require('./audio_analyser_lsf');
 
 
 
-function compute_features(audioconf, inputbuffer,outputbuffer, user, packetcode) {
+function compute_features(audioconf, inputbuffer,outputbuffer, user, word_id, packetcode) {
 
     print_debug("============  FEATURE COMPUTATION, HOW EXCITING!!! ==========");
 
@@ -64,11 +64,11 @@ function compute_features(audioconf, inputbuffer,outputbuffer, user, packetcode)
     print_debug("Added noise for "+addcount +" entries");
 
 
-    mfcc_analysis.compute_mfcc(audioconf, noisedbuffer,outputbuffer, user, packetcode);
+    mfcc_analysis.compute_mfcc(audioconf, noisedbuffer,outputbuffer, user, word_id, packetcode);
 
-    lsf_analysis.compute_lsf(audioconf, noisedbuffer,outputbuffer, user, packetcode);
+    lsf_analysis.compute_lsf(audioconf, noisedbuffer,outputbuffer, user, word_id, packetcode);
 
-    f0_analysis.compute_f0(audioconf, inputbuffer,outputbuffer, user, packetcode);
+    f0_analysis.compute_f0(audioconf, inputbuffer,outputbuffer, user, word_id, packetcode);
 
 
 }

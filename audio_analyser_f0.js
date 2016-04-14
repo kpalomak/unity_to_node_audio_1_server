@@ -28,7 +28,7 @@ if (debug) {
 var outputbuffer = Buffer.concat([]);
 
 
-function compute_f0(audioconf, inputbuffer, targetbuffer, user, packetcode) {
+function compute_f0(audioconf, inputbuffer, targetbuffer, user, word_id, packetcode) {
 
     DEBUG_TEXTS = audioconf.debug_f0;
 
@@ -55,7 +55,7 @@ function compute_f0(audioconf, inputbuffer, targetbuffer, user, packetcode) {
     var f0 = spawn(f0_command, f0_args);
     
     f0.stderr.on('data',  function(err)  { show_error(err.toString(), 'f0 stderr'); 
-					   process.emit('f0Done', user, packetcode); });
+					   process.emit('user_event', user, word_id, 'f0Done', {packetcode:packetcode}); });
 
     f0.on('error',  function(err)  { show_error(err, 'f0 on error'); });
     
@@ -71,7 +71,8 @@ function compute_f0(audioconf, inputbuffer, targetbuffer, user, packetcode) {
 	    }	    
 	    
 	    print_debug('Emitting logF0Done');
-	    process.emit('logF0Done', user, packetcode);
+	    process.emit('user_event', user, word_id, 'f0Done', {packetcode:packetcode}); 
+
 	}
 	show_exit(exit_code, 'f0'); 
     });
