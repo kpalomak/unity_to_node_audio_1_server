@@ -23,7 +23,6 @@ var fs = require('fs');
 
 var logging = require('./logging');
 
-
 // Events needed for data processing:
 //var events = require('events');
 //var eventEmitter = require('./emitters.js');
@@ -102,9 +101,14 @@ var user_credential_file = './users.json';
 
 var passwords = JSON.parse(fs.readFileSync(user_credential_file, 'utf8'));
 
+//var user_data_dir = './users/';
+
 function authenticate(req, res, callback) {
     username = req.headers['x-siak-user'];
     password = req.headers['x-siak-password'];
+
+    //var userfile = username+"___"+password;
+
 
     console.log("Authenticating >"+username + "< >" + password +"<!");    
 
@@ -190,7 +194,7 @@ var operate_recognition = function (req,res) {
     user = req.headers['x-siak-user'];
     packetnr = req.headers['x-siak-packetnr'];
 
-    console.log("user: "+user);
+    console.log("user: "+user + " packetnr: "+packetnr);
 
 
     // TODO: Implement user authentication and logging!!!
@@ -306,17 +310,19 @@ debugout('Server running on port '+ (process.env.PORT || 8001) );
 
 
 function initialisation_reply(user) {    
-    res_json = audioconf;
-    res_json.msg="<br>Recognition server initialised!";
-    userdata[user].initreply.end( JSON.stringify(res_json) );
+    //res_json = audioconf;
+    //res_json.msg="<br>Recognition server initialised!";
+    //userdata[user].initreply.end( JSON.stringify(res_json) );
+    userdata[user].initreply.end( "ok" );
 }
 
 
 function word_select_reply(user) {
-    res_json = {
-	msg: "<br>Segmentation server initialised!"
-    };
-    userdata[user].readyreply.end( JSON.stringify({res_json}) );
+    //res_json = {
+    //	msg: "<br>Segmentation server initialised!"
+    //};
+    //userdata[user].readyreply.end( JSON.stringify({res_json}) );
+    userdata[user].readyreply.end( userdata[user].currentword.reference )
 }
 
 
@@ -357,9 +363,11 @@ function init_userdata(user) {
 
 function set_word_and_init_recogniser(user, word, word_id) {
 
-    console.log("set_word_and_init_recogniser("+word+")!");
+
+    console.log("set_word_and_init_recogniser("+word+")!");	
     userdata[user].segmenter.init_segmenter(word, word_id);
     userdata[user].segmentation_handler.init_classification(word, word_id);
+
     
 }
 
@@ -427,11 +435,15 @@ function processDataChunks(user, wordid, res, packetnr) {
 	if (userdata[user].currentword.lastpacketnr < 0) {
 	    // We do not know yet what is the last packet.
 	    // acknowledge with message:
-	    if (packetnr > -1) {
-		res.end( JSON.stringify(
-		    {
-			msg: "<br>Processing packet "+packetnr+" ---"
-		    } ));
+	    if (packetnr == 6) {
+		res.end( "-1" );
+	    }
+	    else if (packetnr > -1) {
+		res.end( "0" );
+		    //JSON.stringify(		    
+		    //{
+		    //	msg: "<br>Processing packet "+packetnr+" ---"
+		    //} ));
 	    }
 	}
 	else {
@@ -488,11 +500,15 @@ function checkLastPacket(user) {
 	//userdata[user].recogniser.finish_audio();
 
 	//setTimeout (function() {
-	    userdata[user].segmenter.finish_audio();
+	userdata[user].segmenter.finish_audio();
 
     //}, 80);
 	
 	
+	// For debug reasons wait for a second and then send the reply:
+	//setTimeout (function(user) { 
+	//calc_score_and_send_reply(user); // }, 80);
+
 	if (debug) {
 	    fs.writeFile("upload_data/debug/"+user+"_floatdata", 
 			 userdata[user].audiobinarydata.slice(0,userdata[user].currentword.bufferend), 
@@ -759,6 +775,8 @@ process.on('user_event', function(user, wordid, eventname, eventdata) {
 	    else if (eventname == 'classification_done') {
 		userdata[user].currentword.phoneme_classes = eventdata.classification
 		
+		
+		// While debugging with Aleks we don't want to rely on the ASR component
 		calc_score_and_send_reply(user);
 	    }
 	    else
@@ -837,10 +855,12 @@ function calc_score_and_send_reply(user) {
 
 
     
-    userdata[user].lastPacketRes.end( JSON.stringify(
-	{score: wordscore, 
-	 recognised_word: userdata[user].currentword.recresult,
-	 msg: "<br>All " + userdata[user].currentword.lastpacketnr +" packets received!"}) );
+    userdata[user].lastPacketRes.end( wordscore.toString() );
+	//JSON.stringify(
+	//wordscr
+	//{score: wordscore, 
+	// recognised_word: userdata[user].currentword.recresult,
+	// msg: "<br>All " + userdata[user].currentword.lastpacketnr +" packets received!"}) );
     
     
     logging.log_scoring({user: user,

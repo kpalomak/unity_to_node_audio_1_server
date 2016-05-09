@@ -33,11 +33,11 @@ if (debug) {
 }
 
 
-var mfcc_analysis = require('./audio_analyser_mfcc');
-var f0_analysis = require('./audio_analyser_f0');
-var lsf_analysis = require('./audio_analyser_lsf');
+//var mfcc_analysis = require('./audio_analyser_mfcc');
+//var f0_analysis = require('./audio_analyser_f0');
+//var lsf_analysis = require('./audio_analyser_lsf');
 
-
+var all_feature_analysis = require('./audio_analyser_all');
 
 
 
@@ -63,14 +63,11 @@ function compute_features(audioconf, inputbuffer,outputbuffer, user, word_id, pa
     }	       
     print_debug("Added noise for "+addcount +" entries");
 
+    //mfcc_analysis.compute_mfcc(audioconf, noisedbuffer,outputbuffer, user, word_id, packetcode);
+    //lsf_analysis.compute_lsf(audioconf, noisedbuffer,outputbuffer, user, word_id, packetcode);
+    //f0_analysis.compute_f0(audioconf, inputbuffer,outputbuffer, user, word_id, packetcode);
 
-    mfcc_analysis.compute_mfcc(audioconf, noisedbuffer,outputbuffer, user, word_id, packetcode);
-
-    lsf_analysis.compute_lsf(audioconf, noisedbuffer,outputbuffer, user, word_id, packetcode);
-
-    f0_analysis.compute_f0(audioconf, inputbuffer,outputbuffer, user, word_id, packetcode);
-
-
+    all_feature_analysis.compute_features(audioconf, inputbuffer,outputbuffer, user, word_id, packetcode);
 }
 
 
