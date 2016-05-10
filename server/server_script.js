@@ -1,9 +1,4 @@
 
-
-
-var debug = require('debug');
-
-
 /*
  * A simple script that receives binary data through HTTP(S) POST in pieces and feeds it to
  * a momentarily non-existent processing script.
@@ -12,24 +7,16 @@ var debug = require('debug');
  *
  */
 
-
 // From: http://stackoverflow.com/questions/13478464/how-to-send-data-from-jquery-ajax-request-to-node-js-server
 
 var http = require('http');
 var util = require('util');
 var url = require('url');
-
 var fs = require('fs');
 
 var logging = require('./logging');
-
-// Events needed for data processing:
-//var events = require('events');
-//var eventEmitter = require('./emitters.js');
-//var eventEmitter = new events.EventEmitter();
-
-
-//var recogniser_client =  require('./recogniser_client');
+var conf = require('./config');
+var gamedatahandler = require('./gamedatahandler');
 
 
 var userdata = {};
@@ -38,39 +25,8 @@ var RecogniserClient = require('./recogniser_client');
 
 var SegmentationHandler  = new require('./scoring_modules/segmentation_handler.js');
 
-var audioconf = {
-    'fs'                     : 16000,
-    'max_utterance_length_s' : 10,
-    'max_packet_length_s'    : 1,
-    'packets_per_second'     : 3,
-    'datatype_length'        : 4,
-    'frame_step_samples'     : 128,
-    'frame_length_samples'   : 400,
-    'frame_step_bits'        : 512,
-    'frame_length_bits'      : 16000,
-    'feature_dim'            : 30,
-    'pitch_low'              : 60,
-    'pitch_high'             : 240,
-    'lsforder'               : 15,
-    'lsflength'              : 16, // Should be order +1
-    'mceporder'              : 12,
-    'mceplength'             : 13,
-    'mcepindexes'            : [0,1,2,3,4,5,6,7,8,9,10,11,12],
-    'f0indexes'              : [13],
-    'lsfindexes'             : [14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29],
-    'dimensions'             : 30, // 16 + 13 + 1
-    'debug_mfcc'             : true,
-    'debug_f0'               : true,
-    'debug_lsf'              : true
-};
-
-var recogconf = {
-    'grammar' : 'words.conf',
-    'packet_size' : 2048,
-    'pause_between_packets' : 20
-}
-
-
+var audioconf = conf.audioconf;
+var recogconf = conf.recogconf;
 
 
 if (process.env.NODE_ENV !== 'production'){
@@ -275,7 +231,7 @@ var operate_recognition = function (req,res) {
 		    debugout("Segmenter's word: "+userdata[user].segmenter.whats_my_word() + " (" +
 				userdata[user].segmenter.whats_my_word_id()+")");
 		    
-		    userdata[user].currentword.packetset[ packetnr ] = 1;
+		    //userdata[user].currentword.packetset[ packetnr ] = 1;
 		    
 		    // For debug:
 		    if (debug) { fs.writeFile("upload_data/debug/"+user+"_packet_"+packetnr, postdata); }
@@ -312,21 +268,23 @@ debugout('Server running on port '+ (process.env.PORT || 8001) );
 
 
 function initialisation_reply(user) {    
-    //res_json = audioconf;
-    //res_json.msg="<br>Recognition server initialised!";
-    //userdata[user].initreply.end( JSON.stringify(res_json) );
     userdata[user].initreply.end( "ok" );
 }
 
 
 function word_select_reply(user) {
-    //res_json = {
-    //	msg: "<br>Segmentation server initialised!"
-    //};
-    //userdata[user].readyreply.end( JSON.stringify({res_json}) );
     userdata[user].readyreply.end( userdata[user].currentword.reference )
 }
 
+
+function get_game_data(user) {
+    return gamedatahandler.getData(user);
+}
+
+
+function set_game_data(user, new_data) {
+    return gamedatahandler.setData(user,new_data);
+}
 
 
 function init_userdata(user) {
@@ -457,19 +415,12 @@ function processDataChunks(user, wordid, res, packetnr) {
 	    if (packetnr != userdata[user].currentword.lastpacketnr) {
 		
 		// We know this is not the last packet, so reply to it quickly:
-		res.end( JSON.stringify(
-		    {
-			msg: "<br>Processing packet "+packetnr+
-			    " --- Last packet is "+userdata[user].currentword.lastpacketnr 
-		    } ));
+		res.end("0");
 		
-
 		// Emit an event to the listener holding back the reply to the last packet
 		// (This is just for the odd possibility that packages would arrive
 		// in a strange order.)
 		process.emit('user_event', user, wordid,'lastPacketCheck', null);
-
-
 	    }
 	    else {
 		// We're dealing with the last packet; Let's see if we have received all packets:
@@ -484,51 +435,26 @@ function processDataChunks(user, wordid, res, packetnr) {
 
 
 
-
+// A somewhat overcomplicated method for checking if all data has been received:
+// (But what can you do? We're in a hurry to process the data and there is no 
+//  guarantee of the packets arriving in right order.)
 function checkLastPacket(user) {
-    
+
+    // Check if we have all the packets in already:    
     var chunkcount = -1;    
     userdata[user].currentword.packetset.forEach( function(element, index, array) {
 	chunkcount++;
     });
     
-
-    // Check if we have all the packets in already:
-    if (chunkcount == userdata[user].currentword.lastpacketnr ) {	
-	
+    if (chunkcount == userdata[user].currentword.lastpacketnr ) {		
 	// Send a null packet to recogniser as sign of finishing:
-	console.log('==((===))=== Finishing audio:');
-
-
-	//userdata[user].recogniser.finish_audio();
-
-	//setTimeout (function() {
 	userdata[user].segmenter.finish_audio();
-
-    //}, 80);
-	
-	
-	// For debug reasons wait for a second and then send the reply:
-	//setTimeout (function(user) { 
-	//calc_score_and_send_reply(user); // }, 80);
-
-	if (debug) {
-	    fs.writeFile("upload_data/debug/"+user+"_floatdata", 
-			 userdata[user].audiobinarydata.slice(0,userdata[user].currentword.bufferend), 
-			 function(err) {
-			     if(err) {
-				 debugout(err);
-				 return;
-			     }	    
-			     debugout( "The file was saved!");
-			     //clearUpload(user);	    
-			 }); 
-	}	
-	
-	
     }
-
 }
+
+
+
+
 
 
 
@@ -537,9 +463,6 @@ function checkLastPacket(user) {
  *     EVEN MORE COMPLEX SERVER LOGIC: AUDIO ANALYSIS
  * 
  */
-
-
-
 
 
 function syncAudioAnalysis(user) {
