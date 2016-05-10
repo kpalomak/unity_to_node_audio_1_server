@@ -11,14 +11,14 @@ mkdir -p $workdir
 
 # Get the binary stdinput into a tmp memory file:
 
+
+#echo "Processing $1 to $2" 1>&2
+
 # For speecon data files:
-echo "Processing $1 to $2" 1>&2
-
-cat $1 | $sptk/x2x +sf > $workdir/rawinput.temp
-
+#cat $1 | $sptk/x2x +sf > $workdir/rawinput.temp
 
 # For general float data:
-# cat - >  $workdir/rawinput.temp
+cat $1 >  $workdir/rawinput.temp
 
 
 

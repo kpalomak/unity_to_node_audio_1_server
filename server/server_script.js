@@ -46,6 +46,8 @@ var audioconf = {
     'datatype_length'        : 4,
     'frame_step_samples'     : 128,
     'frame_length_samples'   : 400,
+    'frame_step_bits'        : 512,
+    'frame_length_bits'      : 16000,
     'feature_dim'            : 30,
     'pitch_low'              : 60,
     'pitch_high'             : 240,
@@ -395,7 +397,8 @@ function clearUpload(user) {
     word.sent_to_analysis=0;
     word.sent_to_recogniser = 0;
     
-    word.featuresdone= [0,0,0];
+    word.featuresdone= 0;
+    word.featureprogress = [];
     word.analysed = 0;
     
     word.segmentation_complete = false;
@@ -565,17 +568,17 @@ function syncAudioAnalysis(user) {
     // find the previous frame start point (essentially flooring to
     // the closest multiple of framestep (default 128) and
 
+    
 
-
-    if (analysis_range_start > audioconf.frame_length_samples - audioconf.frame_step_samples) 
+    if (analysis_range_start > audioconf.frame_length_bits - audioconf.frame_step_bits) 
     {
 	// if we are not dealing with the first bits of the file, 
 	// take into account the frame overlap (ie. include a bit 
 	// from previous package):
 	
 	analysis_range_start -= 
-	    Math.floor( audioconf.frame_length_samples / 
-			audioconf.frame_step_samples ) * audioconf.frame_step_samples; 
+	    Math.floor( audioconf.frame_length_bits / 
+			audioconf.frame_step_bits ) * audioconf.frame_step_bits; 
     }
 
     // and floor the end to the closesti multiple of framestep:
@@ -583,7 +586,7 @@ function syncAudioAnalysis(user) {
     // buffer so the last bits of audio signal will be analysed and 
     // fill the buffer with tiny noise for that; Well, we don't seem to be doing it here now.
     
-    var analysis_range_end= (userdata[user].currentword.bufferend - (userdata[user].currentword.bufferend % audioconf.frame_step_samples));
+    var analysis_range_end= (userdata[user].currentword.bufferend - (userdata[user].currentword.bufferend % audioconf.frame_step_bits));
     var recog_range_end= userdata[user].currentword.bufferend;
 
     // Immediately update the range ends so things don't get called twice!
@@ -594,14 +597,14 @@ function syncAudioAnalysis(user) {
 
     var analysis_range_length = analysis_range_end - analysis_range_start;
 
-    var analysis_start_frame =  (analysis_range_start/ audioconf.frame_step_samples);
-    var analysis_end_frame = (analysis_range_end/ audioconf.frame_step_samples);
-    var analysis_frame_length = (analysis_range_length / audioconf.frame_step_samples);
+    var analysis_start_frame =  (analysis_range_start/ audioconf.frame_step_bits);
+    var analysis_end_frame = (analysis_range_end/ audioconf.frame_step_bits);
+    var analysis_frame_length = (analysis_range_length / audioconf.frame_step_bits);
     
-    var result_range_length = analysis_range_length - Math.floor(audioconf.frame_length_samples/
-								 audioconf.frame_step_samples) * audioconf.frame_step_samples;
+    var result_range_length = analysis_range_length - Math.floor(audioconf.frame_length_bits/
+								 audioconf.frame_step_bits) * audioconf.frame_step_bits;
     
-    var overlap_frames = Math.ceil((audioconf.frame_length_samples - audioconf.frame_step_samples)/ audioconf.frame_step_samples );
+    var overlap_frames = Math.ceil((audioconf.frame_length_bits - audioconf.frame_step_bits)/ audioconf.frame_step_bits );
     
     userdata[user].currentword.featureend = analysis_end_frame;
 
@@ -609,8 +612,8 @@ function syncAudioAnalysis(user) {
 	     " --> framed to " + analysis_range_start + 
 	     " - " + analysis_range_end +
 	     " (frames " +
-	     (analysis_range_start/ audioconf.frame_step_samples) + "-" +
-	     (analysis_range_end/ audioconf.frame_step_samples) + ")");
+	     (analysis_range_start/ audioconf.frame_step_bits) + "-" +
+	     (analysis_range_end/ audioconf.frame_step_bits) + ")");
     
     debugout("******** Waiting in return: " + 
 	     " --> framed to " + analysis_start_frame * audioconf.dimensions +
@@ -621,7 +624,12 @@ function syncAudioAnalysis(user) {
     
 
     if (analysis_range_length > 0) {
-    // Send data to the DNN feature extractor:
+
+
+	var packetnr = userdata[user].currentword.featureprogress.length;
+	userdata[user].currentword.featureprogress.push(0);
+
+	// Send data to the DNN feature extractor:
 	var audio_analyser = require('./audio_analyser');
 	
 	audio_analyser.compute_features( audioconf,
@@ -630,6 +638,7 @@ function syncAudioAnalysis(user) {
 									   (analysis_end_frame-overlap_frames) * audioconf.dimensions ),
 					 user, 
 					 userdata[user].currentword.id,
+					 packetnr,
 					 analysis_range_end);
     }
     else 
@@ -735,16 +744,15 @@ process.on('user_event', function(user, wordid, eventname, eventdata) {
 	    else if (eventname ==  'sendAudioForAnalysis' ) {
 		syncAudioAnalysis(user);	    
 	    }
-	    else if (eventname ==  'mfccDone') {
-		userdata[user].currentword.featuresdone[0] = Math.max( userdata[user].currentword.featuresdone[0], eventdata.packetcode );    
-		check_feature_progress(user);
-	    }
-	    else if (eventname == 'lsfDone' ) {
-		userdata[user].currentword.featuresdone[1] = Math.max( userdata[user].currentword.featuresdone[1], eventdata.packetcode );    
-		check_feature_progress(user);
-	    }
-	    else if (eventname ==  'logF0Done') {
-		userdata[user].currentword.featuresdone[2] = Math.max( userdata[user].currentword.featuresdone[2], eventdata.packetcode );    
+	    else if (eventname ==  'featDone') {
+		userdata[user].currentword.featureprogress [eventdata.packetcode] = eventdata.maxpoint;
+		userdata[user].currentword.featuresdone = userdata[user].currentword.featureprogress [0]
+
+		for (var n = 1; n < userdata[user].currentword.featureprogress.length; n++) {
+		    if (userdata[user].currentword.featuresdone !== 0 && userdata[user].currentword.featureprogress[n] > 0) {
+			userdata[user].currentword.featuresdone = userdata[user].currentword.featureprogress[n]
+		    }
+		}
 		check_feature_progress(user);
 	    }
 	    else if (eventname == 'segmented' ) {
@@ -789,44 +797,37 @@ process.on('user_event', function(user, wordid, eventname, eventdata) {
 
 
 
-
 function check_feature_progress(user) {
 
 
-    // Check if we have all the classification features up to the buffer end:
-    
-    var maxpoint =  Math.min.apply (Math, userdata[user].currentword.featuresdone);	
 
-    if (maxpoint < userdata[user].currentword.analysed )
-    {
-	// if not, wait...
-	debugout("*** Waiting for more features: ("+ userdata[user].currentword.featuresdone.toString() +" / "+  
-		 Math.min.apply (Math, userdata[user].featuresdone)   +
-		 " segment: "+userdata[user].segmentation_complete + 
-		 " recog: "+ userdata[user].recognition_complete +" ) ")
-    }
-    else {
-	
-	// Mark that we have done the analysis to this last known point:
-	userdata[user].analysed = maxpoint;
-    }
+    // Check if it was the last packet:
+    if (userdata[user].currentword.lastpacketnr > -1) {
 
-    if (maxpoint => userdata[user].currentword.bufferend) {
-
-	// If we are at bufferend, check if it was the last packet:
-
-	debugout("*** Data processed up to the bufferend, was it the last packet already? lastpacketnr: "+ userdata[user].currentword.lastpacketnr);
-
-	if (userdata[user].currentword.lastpacketnr > -1) {
-	    // Apparently we have the last packet already:
-	    debugout("*** Last packet, here goes!" );
+	// Check if we have all the classification features up to the buffer end:    
+	if ( userdata[user].currentword.featuresdone  < userdata[user].currentword.sent_to_analysis )
+	{
+	    // if not, wait...
+	    debugout("*** Waiting for more features: ("+ userdata[user].currentword.featuresdone.toString() +" / "+  
+		     userdata[user].featureprogress   +
+		     " segment: "+userdata[user].segmentation_complete + 
+		     " recog: "+ userdata[user].recognition_complete +" ) ")
+	}
+	else {
+	    
+	    debugout("*** Data processed up to the bufferend, was it the last packet already? lastpacketnr: "+ userdata[user].currentword.lastpacketnr);
 	    
 	    if (userdata[user].currentword.segmentation_complete)  {
 		
 		if (userdata[user].currentword.state_statistics == null) {
+
+		    if (debug) { 
+			fs.writeFile("upload_data/debug/"+user+"_waveform_input_float", userdata[user].audiobinarydata.slice(0, userdata[user].currentword.bufferend )); 
+			fs.writeFile("upload_data/debug/"+user+"_features_output_float", userdata[user].featuredata.slice(0, userdata[user].currentword.featurebufferend )); 
+		    }
 		    
 		    userdata[user].currentword.state_statistics = "Working...";
-
+		    
 		    // We have last packet analysed and a segmentation ready, so let's
 		    // calculate statistics and get classification results!
 		    
@@ -837,12 +838,9 @@ function check_feature_progress(user) {
 			userdata[user].featuredata.slice(0, userdata[user].currentword.featurebufferend), 
 			audioconf);
 		}
-	    }
-	    
-	}
-	
+	    }	   
+	}	
     }    
-    //userdata[user].featuresdone = [false,false,false];
 }
 
 

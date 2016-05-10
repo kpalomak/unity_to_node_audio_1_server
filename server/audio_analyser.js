@@ -41,9 +41,9 @@ var all_feature_analysis = require('./audio_analyser_all');
 
 
 
-function compute_features(audioconf, inputbuffer,outputbuffer, user, word_id, packetcode) {
+function compute_features(audioconf, inputbuffer,outputbuffer, user, word_id, packetcode, maxpoint) {
 
-    print_debug("============  FEATURE COMPUTATION, HOW EXCITING!!! ==========");
+    print_debug("============  FEATURE COMPUTATION, HOW EXCITING!!! packetnr "+ packetcode +" range: "+ (maxpoint-inputbuffer.length)+"-"+maxpoint+" ==========");
 
     //this.audioconf = audioconf;
     //this.inputbuffer = inputbuffer;
@@ -67,7 +67,7 @@ function compute_features(audioconf, inputbuffer,outputbuffer, user, word_id, pa
     //lsf_analysis.compute_lsf(audioconf, noisedbuffer,outputbuffer, user, word_id, packetcode);
     //f0_analysis.compute_f0(audioconf, inputbuffer,outputbuffer, user, word_id, packetcode);
 
-    all_feature_analysis.compute_features(audioconf, inputbuffer,outputbuffer, user, word_id, packetcode);
+    all_feature_analysis.compute_features(audioconf, inputbuffer,outputbuffer, user, word_id, packetcode, maxpoint);
 }
 
 

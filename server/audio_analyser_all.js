@@ -30,25 +30,20 @@ if (debug) {
 var outputbuffer = Buffer.concat([]);
 
 
-function compute_features(audioconf, inputbuffer, targetbuffer, user, word_id, packetcode) {
+function compute_features(audioconf, inputbuffer, targetbuffer, user, word_id, packetcode, maxpoint) {
 
-    DEBUG_TEXTS = audioconf.debug_f0;
+    //DEBUG_TEXTS = audioconf.debug_f0;
 
-    print_debug("============ FEATURE COMPUTATION, HOW EXCITING!!! user: "+user+" word_id: "+word_id+" packetcode: "+ packetcode +" ==========");
+    print_debug("== EXCITING!!! user: "+user+" word_id: "+word_id+" packetcode: "+ packetcode +" maxpoint: " +maxpoint +"======");
 
-    var frame_step_samples = audioconf.frame_step_samples;
-    
-    var lsforder = audioconf.lsforder;
-    var lsflength = audioconf.lsflength; // Should be order +1
-    
-    var mfccorder = audioconf.mceporder;
-    var mfcclength = audioconf.mceplength;  // Should be order +1
-    
-
-    var lsf_start = 1;
-    var mfcc_start = lsflength+1;
-
-    var features_length = mfcclength+lsflength+1;
+    //var frame_step_samples = audioconf.frame_step_samples;
+    //var lsforder = audioconf.lsforder;
+    //var lsflength = audioconf.lsflength; // Should be order +1
+    //var mfccorder = audioconf.mceporder;
+    //var mfcclength = audioconf.mceplength;  // Should be order +1
+    //var lsf_start = 1;
+    //var mfcc_start = lsflength+1;
+    //var features_length = mfcclength+lsflength+1;
 
     var tmpdir = "/dev/shm/siak-"+process.pid+"-"+user+"_"+word_id+"_"+packetcode+"_"+Date.now();
 
@@ -70,25 +65,28 @@ function compute_features(audioconf, inputbuffer, targetbuffer, user, word_id, p
 	    
 	    var featext = spawn(featext_command, featext_args);
 	    
-	    featext.stderr.on('data',  function(err)  { show_error(err.toString(), 'f0 stderr'); 
-							process.emit('user_event', user, word_id, 'f0Done', {packetcode:packetcode}); });
+	    featext.stderr.on('data',  function(err)  { show_error(err.toString(), 'feat stderr'); 
+							process.emit('user_event', user, word_id, 'featDone', {packetcode:packetcode, maxpoint:0}); });
 	    
-	    featext.on('error',  function(err)  { show_error(err, 'f0 on error'); });
+	    featext.on('error',  function(err)  { show_error(err, 'Feat on error'); });
 	    
-	    featext.on('uncaughtException', function(err) { show_error(err, 'f0 on uncaughtexp');});
+	    featext.on('uncaughtException', function(err) { show_error(err, 'Feat on uncaughtexp');});
 	    
 	    featext.on('close',  function(exit_code)  { 
 		print_debug("Shell script exit: "+exit_code.toString());
 		if (exit_code == 0) {
-		    print_debug('Feature analysis done; Data length: '+outputbuffer.length);	   
 		    
 		    fs.readFile(tmpoutput, function (err, outputbuffer) {
 			if (err) throw err;
 			
-			outputbuffer.copy(targetbuffer, 0, outputdata.length);
+			console.log("From outputbuffer to targetbuffer: 0,"+outputbuffer.length)
+
+			outputbuffer.copy(targetbuffer, 0, 0, outputbuffer.length);
+
+			print_debug('Feature analysis done; Data length: '+outputbuffer.length);	   
 			
 			print_debug('Emitting featDone');
-			process.emit('user_event', user, word_id, 'featDone', {packetcode:packetcode}); 			
+			process.emit('user_event', user, word_id, 'featDone', {packetcode:packetcode, maxpoint:maxpoint}); 			
 			
 			
 		   	fs.writeFile("upload_data/debug/"+user+"_inputdata_"+packetcode, inputbuffer, function(err) {
@@ -123,13 +121,15 @@ function show_error(err, source) {
 
 
 function show_exit(exit_code, source) {
-    if (exit_code==0) 
-    {
-	print_debug(source + " exited with code "+exit_code);
-    }
-    else 
-    {
-	print_debug(source + " exited with code "+exit_code);
+    if (DEBUG_TEXTS) {
+	if (exit_code==0) 
+	{
+	    print_debug(source + " exited with code "+exit_code);
+	}
+	else 
+	{
+	    print_debug(source + " exited with code "+exit_code);
+	}
     }
 }
 
