@@ -1,0 +1,100 @@
+
+<html>
+<head>
+<title> Siak server test! </title>
+
+<style>
+body {
+    background-color: linen;
+}
+
+.logpart {
+    border: 1px solid;
+    padding: 5px;
+    color: maroon;
+    margin: 10px;
+   
+}
+</style>
+
+</head>
+<body>
+<script src="test_the_siak_server.js"></script>
+
+<div>
+<p>
+Server address:<br>
+<input type=text id='server_address'>
+
+<p>
+Username:<br>
+<input type=text id='username'>
+<br>
+Password:<br>
+<input type=text id='password'>
+
+
+<p>
+Choose test file: (1 channel, 16k Hz in 32-bit floats)<br>
+<input type=file id="test_file"> <br>
+
+<p>
+Transcription: (for segmentation)<br>
+<select name='transcription' id='transcription'>
+  <option value='dog'>dog</option>
+  <option value='choose'>choose</option>
+</select>
+
+
+<p>
+<input type=button id="connect_and_test" onClick='connect_only()' value="Connect only"> <br>
+<input type=button id="connect_and_test" onClick='upload_only()' value="Send only"><br>
+<input type=button id="connect_and_test" onClick='connect_and_test()' value="Connect and send">
+<input type=button id="connect_and_test" onClick='reinit_and_test()' value="Reinit and send">
+
+<p>
+<select name='level' id='level'>
+  <option value='1'>1</option>
+  <option value='2'>2</option>
+  <option value='3'>3</option>
+  <option value='4'>4</option>
+  <option value='5'>5</option>
+  <option value='6'>6</option>
+  <option value='7'>7</option>
+  <option value='8'>8</option>
+  <option value='9'>9</option>
+  <option value='10'>10</option>
+  <option value='11'>11</option>
+  <option value='12'>12</option>
+  <option value='13'>13</option>
+  <option value='14'>14</option>
+  <option value='15'>15</option>
+  <option value='16'>16</option>
+  <option value='17'>17</option>
+  <option value='18'>18</option>
+  <option value='19'>19</option>
+  <option value='20'>20</option>
+  <option value='21'>21</option>
+  <option value='22'>22</option>
+  <option value='23'>23</option>
+  <option value='24'>24</option>
+  <option value='25'>25</option>
+  <option value='26'>26</option>
+  <option value='27'>27</option>
+  <option value='28'>28</option>
+  <option value='29'>29</option>
+  <option value='30'>30</option>
+</select>
+<input type=button id="send_complete_level" onClick='send_level_update()' value="Complete level"> <br>
+
+
+</div>
+
+<div id="logging">
+  <div id="log0" class="logpart"> 
+    Let's go whenever you're ready!
+  </div>
+<div>
+
+</body>
+</html>

@@ -14,16 +14,18 @@ var util = require('util');
 var url = require('url');
 var fs = require('fs');
 
-var logging = require('./logging');
+
 var conf = require('./config');
-var gamedatahandler = require('./gamedatahandler');
+
+var logging = require('./game_data_handling/logging');
+var gamedatahandler = require('./game_data_handling/game_data_handler');
 
 
 var userdata = {};
 
-var RecogniserClient = require('./recogniser_client');
+var RecogniserClient = require('./audio_handling/recogniser_client');
 
-var SegmentationHandler  = new require('./scoring_modules/segmentation_handler.js');
+var SegmentationHandler  = new require('./score_handling/segmentation_handler.js');
 
 var audioconf = conf.audioconf;
 var recogconf = conf.recogconf;
@@ -553,7 +555,7 @@ function syncAudioAnalysis(user) {
 	userdata[user].currentword.featureprogress.push(0);
 
 	// Send data to the DNN feature extractor:
-	var audio_analyser = require('./audio_analyser');
+	var audio_analyser = require('./audio_handling/audio_analyser');
 	
 	audio_analyser.compute_features( audioconf,
 					 userdata[user].audiobinarydata.slice(analysis_range_start,analysis_range_end), 

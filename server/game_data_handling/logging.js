@@ -1,6 +1,6 @@
 
 
-var conf = require ('./config');
+var conf = require ('../config');
 var fs = require('fs');
 
 
