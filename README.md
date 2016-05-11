@@ -8,8 +8,8 @@ passes them to a recogiser backend.
 
 * Receive HTTP packets in port $PORT (or 8001 if $PORT not set).
 
-⋅⋅⋅ (Maybe you want to set nginx to remove prefix from HTTPS  
-... calls and forward them to this port?)
+   (Maybe you want to set nginx to remove prefix from HTTPS calls 
+   and forward them to this port?)
 
 * Pass audio packets to a speech recogniser backend (not included 
 in this repo)
@@ -36,7 +36,10 @@ Setting this server up as a system service is left for later.
 Some hard-coded stuff in the files for now. We'll get rid of them
 "real soon."
 
-## Testing the server
+
+### Some technicalities:
+
+#### Testing the server
 
 Simple HTML page + some javascript is provided to test the server
 without access to the unmentionable game.
@@ -47,15 +50,15 @@ cross-domain posting hassle, they should be served from the same
 computer that runs the server.
 
 
-## Files (what is happening and where)
+#### Files (what is happening and where)
 
+**server/**
 * **server_script.js** _The main server logic_
-
 * **audio_handling/**
   * **audio_analyser.js** _pipes the audio data and result buffer to audio_analyser_all.sh_
   * **audio_analyser_all.js** _runs the feature extraction script and writes the features to a given buffer_
   * **audio_analyser_all.sh** _uses SPTK to create 30dim features from audio data (not required yet!)_
-  * **recogniser_client.js** _runs the recogniser backend instance(s)
+  * **recogniser_client.js** _runs the recogniser backend instance(s)_
 * **game_data_handling/**
   * **logging.js**
   * **game_data_handler.js**
@@ -67,7 +70,47 @@ computer that runs the server.
 * **package.json** _node package information_
 * **users.json** _sample users to use for testing while I'm building real user managemenr_
 
-## Stored user and game data:
+**static_testing/**
+* **testing.html** _for testing the server without the game client_
+* **test_the_siak_server.js**
+
+
+_The following will be removed soon:_
+**client/**
+**theano_socket/**
+
+#### Calls and returns:
+
+**/asr** takes some comlplicated calls with loads of information in headers and returns either an ack (0), a _stop recording command_ (-1) or, for the last packet, a score for the speech segment (1-5).
+
+**/level-complete** will add $level to the list of unlocked levels
+
+**/log-action** will log the game action (moving, interacting with board otherwise)
+
+**/login** starts the session, fires up the recogniser backend and returns a list of unlocked levels (in what format?)
+
+**/logout** _NOT IMPLEMENTED_
+
+#### Headers:
+
+Authentication carried in all packets (no session control on server!):
+```
+x-siak-user
+x-siak-password
+```
+
+Metadata for speech segments:
+```
+x-siak-current-word
+x-siak-final-packet
+x-siak-packet-arraystart
+x-siak-packet-arrayend
+x-siak-packet-arraylength
+```
+
+
+
+#### Stored user and game data:
 
 ```
 username :         String
