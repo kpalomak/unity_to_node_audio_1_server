@@ -52,44 +52,44 @@ computer that runs the server.
 
 #### Files (what is happening and where)
 
-**server/**
-* **server_script.js** _The main server logic_
-* **audio_handling/**
-  * **audio_analyser.js** _pipes the audio data and result buffer to audio_analyser_all.sh_
-  * **audio_analyser_all.js** _runs the feature extraction script and writes the features to a given buffer_
-  * **audio_analyser_all.sh** _uses SPTK to create 30dim features from audio data (not required yet!)_
-  * **recogniser_client.js** _runs the recogniser backend instance(s)_
-* **game_data_handling/**
-  * **logging.js**
-  * **game_data_handler.js**
-* **scoring_handling/**
-  * **segmentation_handler.js** _takes the segmentation and tries to do some classification with it (in the future)_
-* **log/** _game logs will be written here
-* **upload_data/** _user speech data and features will be written here_
-  * **debug/** _used to write weird stuff for debugging_
-* **package.json** _node package information_
-* **users.json** _sample users to use for testing while I'm building real user managemenr_
+`server/`
+* `server_script.js` _The main server logic_
+* `audio_handling/`
+  * `audio_analyser.js` _pipes the audio data and result buffer to audio_analyser_all.sh_
+  * `audio_analyser_all.js` _runs the feature extraction script and writes the features to a given buffer_
+  * `audio_analyser_all.sh` _uses SPTK to create 30dim features from audio data (not required yet!)_
+  * `recogniser_client.js` _runs the recogniser backend instance(s)_
+* `game_data_handling/`
+  * `logging.js`
+  * `game_data_handler.js`
+* `scoring_handling/`
+  * `segmentation_handler.js` _takes the segmentation and tries to do some classification with it (in the future)_
+* `log/` _game logs will be written here
+* `upload_data/` _user speech data and features will be written here_
+  * `debug/` _used to write weird stuff for debugging_
+* `package.json` _node package information_
+* `users.json` _sample users to use for testing while I'm building real user managemenr_
 
-**static_testing/**
-* **testing.html** _for testing the server without the game client_
-* **test_the_siak_server.js**
+`static_testing/`
+* `testing.html` _for testing the server without the game client_
+* `test_the_siak_server.js`
 
 
 _The following will be removed soon:_
-**client/**
-**theano_socket/**
+`client/`
+`theano_socket/`
 
 #### Calls and returns:
 
-**/asr** takes some comlplicated calls with loads of information in headers and returns either an ack (0), a _stop recording command_ (-1) or, for the last packet, a score for the speech segment (1-5).
+`/asr` takes some comlplicated calls with loads of information in headers and returns either an ack (0), a _stop recording command_ (-1) or, for the last packet, a score for the speech segment (1-5).
 
-**/level-complete** will add $level to the list of unlocked levels
+`/level-complete` will add $level to the list of unlocked levels
 
-**/log-action** will log the game action (moving, interacting with board otherwise)
+`/log-action` will log the game action (moving, interacting with board otherwise)
 
-**/login** starts the session, fires up the recogniser backend and returns a list of unlocked levels (in what format?)
+`/login` starts the session, fires up the recogniser backend and returns a list of unlocked levels (in what format?)
 
-**/logout** _NOT IMPLEMENTED_
+`/logout` _NOT IMPLEMENTED_
 
 #### Headers:
 
