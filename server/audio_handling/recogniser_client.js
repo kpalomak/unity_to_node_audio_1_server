@@ -370,9 +370,6 @@ function RecogniserClient (conf, user, segmentword) {//(conf, user, segmentword)
 	this_packet_size = Math.min( (data.length-i), this.recog_conf.packet_size);    
 
 	debugout(current_port + "("+this.client_type+") Sending "+data.length+" bytes of data: Word is set to "+this.word_to_be_segmented);
-	//if (this_packet_size == 0) {
-	//	debugout("###################### SIZE 0 PACKET SENT!!!! ###########################");
-	//}
 
 	var that = this;
 	this.client.write(

@@ -25,7 +25,9 @@ var userdata = {};
 
 var RecogniserClient = require('./audio_handling/recogniser_client');
 
-var SegmentationHandler  = new require('./score_handling/segmentation_handler.js');
+var SegmentationHandler  = new require('./score_handling/a_less_impressive_segmentation_handler.js');
+
+var scorer =  require('./score_handling/fur_hat_scorer.js');
 
 var audioconf = conf.audioconf;
 var recogconf = conf.recogconf;
@@ -34,6 +36,8 @@ var recogconf = conf.recogconf;
 if (process.env.NODE_ENV !== 'production'){
     require('longjohn');
     var debug = true;
+
+    var colorcodes =  {'event' : '\x1b[36m%s\x1b[0m' };
 }
 
 
@@ -54,11 +58,11 @@ function debugout(format, msg) {
  */
 
 
-//
-// Extremely lazy user control!
-// 
-// Keep in mind this is not a production system
-// in any way!
+/*
+ * Extremely lazy user control!
+ * 
+ * Keep in mind this is not a production system in any way!
+ */
 
 
 var user_credential_file = './users.json';
@@ -107,16 +111,15 @@ function authenticate(req, res, callback) {
 
 http.createServer(function (req, res) {
 
-    //debugout(req);
-
-    res.setHeader('Content-Type', 'application/json');
+    // JSON parsing is problematic on client, so let's leave this out:
+    //res.setHeader('Content-Type', 'application/json');
 
     authenticate(req, res,
 		 function (err, username, req, res) {
 		     if (err) {
 			 debugout("user "+username + " password NOT ok!");
 			 res.statusCode = 401;
-			 res.end( JSON.stringify({err}) );			 
+			 res.end( err.msg );			 
 		     }
 		     else {
 			 debugout("user "+username + " password ok!");
@@ -140,6 +143,118 @@ http.createServer(function (req, res) {
 		 });
 
 }).listen(process.env.PORT || 8001);
+
+
+
+
+/*
+ 
+  Event-driven asynchronous behaviour:
+  
+  Trigger events are passed through the process event handler - A dedicated event
+  handler would be necessary for communicating between processes, so now the user
+  is locked into using a single instance for the duration of the game session.
+
+
+  Nothing stops from having multiple instances of the server running, but players
+  need to be assigned to a single server for each session. Some URL coding could be
+  added to accomplish this if we start running multiple instances.
+
+ */
+
+
+/* 
+ *   USER EVENTS
+ */
+
+
+process.on('user_event', function(user, wordid, eventname, eventdata) {
+
+    debugout(colorcodes.event, 'EVENT: user '+user+' wordid '+wordid +" eventname "+eventname); 
+
+    if (eventname == 'segmenter_loaded') {
+	userdata[user].segmenter_loaded = true;
+	userdata[user].currentword.reference = eventdata.word;
+	initialisation_reply(user);
+    }
+    else if (eventname == 'segmenter_ready') 
+    {
+	userdata[user].segmenter_ready = true;
+	userdata[user].currentword.reference = eventdata.word;	    
+	word_select_reply(user);
+	
+    }
+    else 
+    {
+	if (wordid != get_current_word_id(user)) {
+	    debugout(colorcodes.event, "this event is for a word that we are not processing at this time (which would be "+get_current_word_id(user)+")");
+	}
+	else
+	{		    
+	    if (eventname == 'last_packet_check' ) {
+		check_last_packet(user);	    
+	    }
+	    else if (eventname ==  'send_audio_for_analysis' ) {
+		asyncAudioAnalysis(user);	    
+	    }
+	    else if (eventname ==  'features_done') {
+		userdata[user].currentword.featureprogress [eventdata.packetcode] = eventdata.maxpoint;
+		userdata[user].currentword.featuresdone = userdata[user].currentword.featureprogress [0]
+
+		for (var n = 1; n < userdata[user].currentword.featureprogress.length; n++) {
+		    if (userdata[user].currentword.featuresdone !== 0 && userdata[user].currentword.featureprogress[n] > 0) {
+			userdata[user].currentword.featuresdone = userdata[user].currentword.featureprogress[n]
+		    }
+		}
+		check_feature_progress(user);
+	    }
+	    else if (eventname == 'segmented' ) {
+		if (segmentation.length > 0) {
+		    
+		    userdata[user].currentword.segmentation = userdata[user].segmentation_handler.segmentation_to_state_list(segmentation);
+		    userdata[user].currentword.segmentation_complete = true;
+
+		    var likelihood = -100.0*Math.random();
+		    scorer.fur_hat_scorer(user, userdata[user].currentword.reference, wordid, userdata[user].currentword.segmentation, likelihood);
+		}
+		else 
+		{
+		    debugout(colorcodes.event, "SEGMENTATION FAILED!");
+		    userdata[user].currentword.segmentation = null;	
+		    userdata[user].currentword.segmentation_complete = true;
+
+		    // Segmentation failed, let's send a zero score to the client:
+		    send_score_and_clear(user, "0", null);
+		}
+		    
+		check_feature_progress(user);
+
+	    }
+	    else if (eventname ==  'segmentation_error') {
+		userdata[user].currentword.segmentation = null;
+		userdata[user].currentword.segmentation_complete = true;
+		
+		check_feature_progress(user);
+	    }	
+	    else if (eventname == 'classification_done') {
+		userdata[user].currentword.phoneme_classes = eventdata.classification
+				
+		// While debugging with Aleks we don't want to rely on the ASR component
+		// calc_score_and_send_reply(user);				
+		
+	    }
+	    else if (eventname == 'scoring_done') {
+		send_score_and_clear(user, eventdata.total_score, eventdata.phoneme_scores);
+	    }
+	    else  {
+		debugout(colorcodes.event, "Don't know what to do with this event!");
+	    }
+	}
+    }
+});
+
+
+
 
 
 
@@ -452,17 +567,21 @@ function processDataChunks(user, wordid, res, packetnr) {
 // A somewhat overcomplicated method for checking if all data has been received:
 // (But what can you do? We're in a hurry to process the data and there is no 
 //  guarantee of the packets arriving in right order.)
-function checkLastPacket(user) {
+function check_last_packet(user) {
 
     // Check if we have all the packets in already:    
     var chunkcount = -1;    
-    userdata[user].currentword.packetset.forEach( function(element, index, array) {
+    userdata[user].currentword.analysedpackets.forEach( function(element, index, array) {
 	chunkcount++;
     });
     
     if (chunkcount == userdata[user].currentword.lastpacketnr ) {		
 	// Send a null packet to recogniser as sign of finishing:
+	debugout("check_last_packet all good: Calling Finish_audio");
 	userdata[user].segmenter.finish_audio();
+    }
+    else {
+	debugout("check_last_packet something missing: chunkcount "+ chunkcount +" !=  userdata[user].currentword.lastpacketnr "+  userdata[user].currentword.lastpacketnr);
     }
 }
 
@@ -640,101 +759,6 @@ function send_to_recogniser(user, datastart, dataend) {
 
 
 
-/*
- *
- *     BACK TO BASICS: EVENTS
- * 
- */
-
-
-
-
-
-process.on('user_event', function(user, wordid, eventname, eventdata) {
-
-    debugout( '\x1b[36m%s\x1b[0m', 'EVENT: user '+user+' wordid '+wordid +" eventname "+eventname); 
-
-    if (eventname == 'segmenter_loaded') {
-	userdata[user].segmenter_loaded = true;
-	userdata[user].currentword.reference = eventdata.word;
-	initialisation_reply(user);
-    }
-    else if (eventname == 'segmenter_ready') 
-    {
-	userdata[user].segmenter_ready = true;
-	userdata[user].currentword.reference = eventdata.word;	    
-	word_select_reply(user);
-	
-    }
-    else 
-    {
-	if (wordid != get_current_word_id(user)) {
-	    debugout("this event is for a word that we are not processing at this time (which would be "+get_current_word_id(user)+")");
-	}
-	else
-	{		    
-	    if (eventname == 'last_packet_check' ) {
-		checkLastPacket(user);	    
-	    }
-	    else if (eventname ==  'send_audio_for_analysis' ) {
-		asyncAudioAnalysis(user);	    
-	    }
-	    else if (eventname ==  'features_done') {
-		userdata[user].currentword.featureprogress [eventdata.packetcode] = eventdata.maxpoint;
-		userdata[user].currentword.featuresdone = userdata[user].currentword.featureprogress [0]
-
-		for (var n = 1; n < userdata[user].currentword.featureprogress.length; n++) {
-		    if (userdata[user].currentword.featuresdone !== 0 && userdata[user].currentword.featureprogress[n] > 0) {
-			userdata[user].currentword.featuresdone = userdata[user].currentword.featureprogress[n]
-		    }
-		}
-		check_feature_progress(user);
-	    }
-	    else if (eventname == 'segmented' ) {
-		if (segmentation.length > 0) {
-		    
-		    userdata[user].currentword.segmentation = userdata[user].segmentation_handler.segmentation_to_state_list(segmentation);
-		    userdata[user].currentword.segmentation_complete = true;
-
-		}
-		else 
-		{
-		    debugout("SEGMENTATION FAILED!");
-		    userdata[user].currentword.segmentation = null;	
-		    userdata[user].currentword.segmentation_complete = true;
-
-		    // Segmentation failed, let's send a zero score to the client:
-		    send_score_and_clear(user, "0");
-		}
-		    
-		check_feature_progress(user);
-
-	    }
-	    else if (eventname ==  'segmentation_error') {
-		userdata[user].currentword.segmentation = null;
-		userdata[user].currentword.segmentation_complete = true;
-		
-		check_feature_progress(user);
-	    }	
-	    else if (eventname == 'classification_done') {
-		userdata[user].currentword.phoneme_classes = eventdata.classification
-				
-		// While debugging with Aleks we don't want to rely on the ASR component
-		// calc_score_and_send_reply(user);
-		
-		
-	    }
-	    else if (eventname == 'scoring_done') {
-		send_score_and_clear(user, eventdata.score);
-	    }
-	    else  {
-		debugout("Don't know what to do with this event!");
-	    }
-	}
-    }
-});
-
-
 
 function check_feature_progress(user) {
 
@@ -754,7 +778,7 @@ function check_feature_progress(user) {
 	}
 	else {
 	    
-	    //debugout("*** Data processed up to the bufferend, was it the last packet already? lastpacketnr: "+ userdata[user].currentword.lastpacketnr);
+	    debugout("*** Data processed up to the bufferend, was it the last packet already? lastpacketnr: "+ userdata[user].currentword.lastpacketnr);
 	    
 	    if (userdata[user].currentword.segmentation_complete)  {
 		
@@ -783,7 +807,7 @@ function check_feature_progress(user) {
 }
 
 
-function send_score_and_clear(user, wordscore) {
+function send_score_and_clear(user, total_score, phoneme_scores) {
 
     debugout("HEAR HEAR; Let's return the results finally!");
 
@@ -791,7 +815,7 @@ function send_score_and_clear(user, wordscore) {
     //wordscore =  Math.round(5.0*Math.random());
     
     
-    userdata[user].lastPacketRes.end( wordscore.toString() );
+    userdata[user].lastPacketRes.end( total_score.toString() );
 
     
     
@@ -799,9 +823,10 @@ function send_score_and_clear(user, wordscore) {
 			 packetcount: userdata[user].currentword.lastpacketnr,
 			 word_id : userdata[user].currentword.id,
 			 score: wordscore, 
-			 reference : userdata[user].currentword.reference,			 
-			 //segmentation: userdata[user].currentword.segmentation, 
-			 classification: userdata[user].currentword.phoneme_classes 
+			 reference : userdata[user].currentword.reference,
+			 phoneme_scores : phoneme_scores
+			 segmentation: userdata[user].currentword.segmentation, 
+			 //classification: userdata[user].currentword.phoneme_classes 
 			});
     
     clearUpload(user)
