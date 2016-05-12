@@ -66,7 +66,7 @@ function compute_features(audioconf, inputbuffer, targetbuffer, user, word_id, p
 	    var featext = spawn(featext_command, featext_args);
 	    
 	    featext.stderr.on('data',  function(err)  { show_error(err.toString(), 'feat stderr'); 
-							process.emit('user_event', user, word_id, 'featDone', {packetcode:packetcode, maxpoint:0}); });
+							process.emit('user_event', user, word_id, 'features_done', {packetcode:packetcode, maxpoint:0}); });
 	    
 	    featext.on('error',  function(err)  { show_error(err, 'Feat on error'); });
 	    
@@ -85,8 +85,8 @@ function compute_features(audioconf, inputbuffer, targetbuffer, user, word_id, p
 
 			print_debug('Feature analysis done; Data length: '+outputbuffer.length);	   
 			
-			print_debug('Emitting featDone');
-			process.emit('user_event', user, word_id, 'featDone', {packetcode:packetcode, maxpoint:maxpoint}); 			
+			print_debug('Emitting features_done');
+			process.emit('user_event', user, word_id, 'features_done', {packetcode:packetcode, maxpoint:maxpoint}); 			
 			
 			
 		   	fs.writeFile("upload_data/debug/"+user+"_inputdata_"+packetcode, inputbuffer, function(err) {

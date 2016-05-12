@@ -36,9 +36,13 @@ if (process.env.NODE_ENV !== 'production'){
     var debug = true;
 }
 
-function debugout(msg) {
+
+function debugout(format, msg) {
     if (debug==true) {
-	console.log(msg);
+	if (msg)
+	    console.log(format, msg);
+	else
+	    console.log( '\x1b[33m%s\x1b[0m', format);
     }
 }
 
@@ -67,19 +71,16 @@ function authenticate(req, res, callback) {
     username = req.headers['x-siak-user'];
     password = req.headers['x-siak-password'];
 
-    //var userfile = username+"___"+password;
-
-
-    console.log("Authenticating >"+username + "< >" + password +"<!");    
+    //debugout("Authenticating >"+username + "< >" + password +"<!");    
 
     if (!passwords.hasOwnProperty(username)) {
-	console.log('users does not contain '+user);
+	debugout('users does not contain '+user);
 	err= { error: 101,
 		 msg: "unknown username"
 	       }
     }
     else if (passwords[username] != password) {
-	console.log('password for '+username +' is not '+ password + ' (should be '+passwords[username]+" )");
+	debugout('password for '+username +' is not '+ password + ' (should be '+passwords[username]+" )");
 	err= { error: 102,
 		 msg: "username and password do not match"
 	       }	
@@ -106,19 +107,19 @@ function authenticate(req, res, callback) {
 
 http.createServer(function (req, res) {
 
-    //console.log(req);
+    //debugout(req);
 
     res.setHeader('Content-Type', 'application/json');
 
     authenticate(req, res,
 		 function (err, username, req, res) {
 		     if (err) {
-			 console.log("user "+username + " password NOT ok!");
+			 debugout("user "+username + " password NOT ok!");
 			 res.statusCode = 401;
 			 res.end( JSON.stringify({err}) );			 
 		     }
 		     else {
-			 console.log("user "+username + " password ok!");
+			 debugout("user "+username + " password ok!");
 			 if (req.url == "/asr") 
 			 {
 			     operate_recognition (req, res);
@@ -154,118 +155,119 @@ var operate_recognition = function (req,res) {
     user = req.headers['x-siak-user'];
     packetnr = req.headers['x-siak-packetnr'];
 
-    console.log("user: "+user + " packetnr: "+packetnr);
+    finalpacket = req.headers['x-siak-final-packet'];
+
+    debugout( '\x1b[33m\x1b[1m%s\x1b[0m', "Received packet for ASR! user: "+user + " packetnr: "+packetnr +" lastpacket? "+finalpacket);
 
 
     // TODO: Implement user authentication and logging!!!
 
-    if (user == null) {
-	dummy = 1;
-    }
-    else
-	if (packetnr == -2) {
-	    init_userdata(user);
+    /* Packet nr -2 is used to initialise the recogniser */
+    if (packetnr == -2) {
+	init_userdata(user);
+	logging.log_event({user: user, event: "initialise"});
+    } 
 
-	    logging.log_event({user: user, event: "initialise"});
-	    
+    /* Packet nr -1 is used to set the word: */
+    else if (packetnr == -1) {
+
+	userdata[user].currentword.reference = req.headers['x-siak-current-word'];	
+	set_word_and_init_recogniser(user, userdata[user].currentword.reference,userdata[user].currentword.id );	
+	logging.log_event({user: user, event: "set_word", word: userdata[user].currentword.reference});
+
+    }	
+
+    /* Packets from 0 onward carry chunked audio data. Last packet has 'x-siak-final-packet' header set to true. */
+    else {
+	/* With first packet write the beginning to a log */
+	if (packetnr == 0 ) {
+	    logging.log_event({user: user, event: "start_audio", wordid: userdata[user].currentword.id, word: userdata[user].currentword.reference});		
 	} 
 
-	else if (packetnr == -1) {
-	    userdata[user].currentword.reference = req.headers['x-siak-current-word'];	
+	finalpacket = req.headers['x-siak-final-packet'];
 
-	    //userdata[user].recogniser.define_word( userdata[user].currentword );
-	    console.log("We got word: "+userdata[user].currentword.reference);
-	    set_word_and_init_recogniser(user, userdata[user].currentword.reference,userdata[user].currentword.id );
-	    
-	    logging.log_event({user: user, event: "set_word", word: userdata[user].currentword.reference});
-	}	
-	else {
-	    if (packetnr == 0 ) {
-		logging.log_event({user: user, event: "start_audio", wordid: userdata[user].currentword.id, word: userdata[user].currentword.reference});		
-	    }
-	    
-	    finalpacket = req.headers['x-siak-final-packet'];
-	    arraystart = parseInt(req.headers['x-siak-packet-arraystart']);
-	    arrayend = parseInt(req.headers['x-siak-packet-arrayend']);
-	    arraylength = parseInt(req.headers['x-siak-packet-arraylength']);
-	    
-
-
-
-	    //debugout("Packet nr "+packetnr + " finalpacket " +finalpacket+" arraystart " + arraystart+ " arrayend " + arrayend);
-	    
-	    
-	    if (finalpacket == "true") {
-		lastpacket=packetnr;
-		userdata[user].currentword.lastpacketnr=packetnr;
-	    }
-	    else {
-		lastpacket = false;
-	    }
-	    
-	    var startcounter=0;
-	    var chunkct=0;
-	    var postdata = '';
-	}
-
-	req.on('data', function (chunk, encoding) {
-	    
-	    postdata += chunk;
-
-   	});
+	if (finalpacket == "true") {
+	    userdata[user].currentword.lastpacketnr=packetnr;
+	}	    
 	
-	req.on('end', function () {
-	    if (packetnr == -2) {
-		userdata[user].initreply = res;
-	    }
-	    else if (packetnr == -1) {		
-		userdata[user].readyreply = res;
-	    }	    
-	    else {
+	/* As the audio buffer from the game is transferred in chunks, the following
+	   headers tell where to place the data in our buffer (as there is a chance that
+	   the HTTP packets arrive in a mixed-up order. Length is redundant as start and
+           end are defined. */
 
-		if (array_contains(userdata[user].currentword.analysedpackets, packetnr))
-		{
-		    console.log("Packet "+packetnr +" already processed - The client tried resending?");
-		    
-		}
-		else 
-		{
-		    debugout("Segmenter's word: "+userdata[user].segmenter.whats_my_word() + " (" +
-				userdata[user].segmenter.whats_my_word_id()+")");
-		    
-		    //userdata[user].currentword.packetset[ packetnr ] = 1;
-		    
-		    // For debug:
-		    if (debug) { fs.writeFile("upload_data/debug/"+user+"_packet_"+packetnr, postdata); }
-	    	    
-		    decodedchunks=new Buffer(postdata, 'base64');
-		    
-		    debugout( "Copying from index " + 0 + "-"+  decodedchunks.length +
-			      " in source to "+ (arraystart*audioconf.datatype_length) + "-"+   + 
-			      ( (arraystart*audioconf.datatype_length) + decodedchunks.length ) +
-			      " in target buffer (length "+decodedchunks.length+")" );
-		    
-		    decodedchunks.copy( // src buffer
-			userdata[user].audiobinarydata, // targetbuffer
-			arraystart*audioconf.datatype_length, // targetstart
-			0, // sourcestart
-			decodedchunks.length); //source-length	 	    
-		    
-		    console.log("userdata[user].bufferend = Math.max( "+
-				(arrayend)*audioconf.datatype_length+","+
-				userdata[user].currentword.bufferend+")");
+	arraystart = parseInt(req.headers['x-siak-packet-arraystart']);
+	arrayend = parseInt(req.headers['x-siak-packet-arrayend']);
+	arraylength = parseInt(req.headers['x-siak-packet-arraylength']);
+	
+	var postdata = ''; // collect the datachunks here and on 'end' copy the data to a reusable buffer
+    }
 
-		    userdata[user].currentword.bufferend = Math.max( (arrayend)*audioconf.datatype_length, 
-							 userdata[user].currentword.bufferend);		
-		    processDataChunks(user, userdata[user].currentword.id, res, packetnr);		
-		}
-	    }
-	});
+    req.on('data', function (chunk, encoding) {
+	/* HTTP data transfer happens in chunks; Node makes sure the data arrives in a proper
+	   order so we can just simply append to the end: */
+	postdata += chunk;
+
+    });
     
+    req.on('end', function () {
+	/* As the HTTP call ends (no more data chunks) it would be time to reply.
+	   But as some of the things we want to do take time, we'll store the reply objects 
+	   in out great central userdata object for later processing: */
+	if (packetnr == -2) {
+	    userdata[user].initreply = res;
+	}
+	else if (packetnr == -1) {		
+	    userdata[user].readyreply = res;
+	}	    
+	else {
+	    if (array_contains(userdata[user].currentword.analysedpackets, packetnr))
+	    {
+		/* Sometimes we fail to reply, and some nosy clients try to resend their call.
+		   That would mess up our careful data processing system, so let's ignore those
+		   recalls. */
+		debugout("Packet "+packetnr +" already processed - The client tried resending?");		
+	    }
+	    else 
+	    {
+		/* Process the audio data: Decode, copy to our user buffer and send for
+		   processing, together with the reply object */
+		
+		// For debug let's write the received data in the debug dir:
+		if (debug) { fs.writeFile("upload_data/debug/"+user+"_packet_"+packetnr, postdata); }
+	    	
+
+		// Decode the received data (base64 encoded binary)
+		decodedchunks=new Buffer(postdata, 'base64');
+		
+		// Announce our honorable intentions to do a copy from buffer to buffer:
+		debugout( "Copying from index " + 0 + "-"+  decodedchunks.length +
+			  " in source to "+ (arraystart*audioconf.datatype_length) + "-"+   + 
+			  ( (arraystart*audioconf.datatype_length) + decodedchunks.length ) +
+			  " in target buffer (length "+decodedchunks.length+")" );
+		
+		decodedchunks.copy( // src buffer
+		    userdata[user].audiobinarydata, // targetbuffer
+		    arraystart*audioconf.datatype_length, // targetstart
+		    0, // sourcestart
+		    decodedchunks.length); //source-length	 	    
+		
+
+		// What was my idea here?
+		debugout("userdata[user].bufferend = Math.max( "+
+			 (arrayend)*audioconf.datatype_length+","+
+			 userdata[user].currentword.bufferend+")");
+
+
+		userdata[user].currentword.bufferend = Math.max( (arrayend)*audioconf.datatype_length, 
+								 userdata[user].currentword.bufferend);		
+
+		
+		processDataChunks(user, userdata[user].currentword.id, res, packetnr);		
+	    }
+	}
+    });    
 }
-
-
-debugout('Server running on port '+ (process.env.PORT || 8001) );
+debugout('If you don\'t see errors above, you should have a server running on port '+ (process.env.PORT || 8001) );
 
 
 
@@ -316,7 +318,7 @@ function init_userdata(user) {
 	
 	userdata[user].segmentation_handler = new SegmentationHandler(user);
 	
-	console.log("Initialising classifier:");
+	debugout("Initialising classifier:");
 
     }
     clearUpload(user);
@@ -326,7 +328,7 @@ function init_userdata(user) {
 function set_word_and_init_recogniser(user, word, word_id) {
 
 
-    console.log("set_word_and_init_recogniser("+word+")!");	
+    debugout("set_word_and_init_recogniser("+word+")!");	
     userdata[user].segmenter.init_segmenter(word, word_id);
     userdata[user].segmentation_handler.init_classification(word, word_id);
 
@@ -374,31 +376,47 @@ function clearUpload(user) {
 function processDataChunks(user, wordid, res, packetnr) {
 
     if (wordid != userdata[user].currentword.id) {
-	debugout ("A very troubling occasion, word ids don't match ("+wordid+"!="+userdata[user].currentword.id);
+	debugout("A very troubling occasion, word ids don't match ("+wordid+"!="+userdata[user].currentword.id);
     }
     else 
     {
 	if (array_contains(userdata[user].currentword.analysedpackets, packetnr))
 	{
-	    console.log("Packet "+packetnr +" already processed - Where did the request come from?");
+	    debugout("Packet "+packetnr +" already processed - Where did the request come from?");
 	    return;
 	}
-	
+
+	// Add the current packetnr to the list of processed packets:
 	userdata[user].currentword.analysedpackets.push(packetnr);
+	debugout('Processing packet '+packetnr);
 
-	debugout('Processing chunk '+packetnr);
+	// Call the asyncAudioAnalysis function (asynchronous processing of new audio data)
+	process.emit('user_event', user, wordid,'send_audio_for_analysis', null);
+	
 
-	syncAudioAnalysis(user)
-
+	/* // One of these is redundant. Let's go through the event processing queue to make things more clear.
+	   // The below code can be removed as soon as things work (again)
+	   asyncAudioAnalysis(user)
+	  
 	if (packetnr > -1) {
 	    // Do stuff with packet of audio data: 
-	    process.emit('user_event', user, wordid,'sendAudioForAnalysis', null);
-	}
+	    process.emit('user_event', user, wordid,'send_audio_for_analysis', null);
+	}*/
 
 	if (userdata[user].currentword.lastpacketnr < 0) {
+
 	    // We do not know yet what is the last packet.
-	    // acknowledge with message:
-	    if (packetnr == 6) {
+	    /* Acknowledge client with message:
+
+	       0:  ok, continue
+	       -1: ok, that's enought, stop recording
+
+	       We'd like to get the stop command from a VAD module (that checks there has been
+	       enough speech before new silence segments) but as we don't have that yet, let's
+	       just use some arbitrary limits set in conf file (rather than hard coding! 
+	       Surprisingly good style, isn't it?)
+	    */
+	    if (packetnr == conf.audioconf.packets_per_second * conf.temp_devel_stuff.good_utterance_length_s ) {
 		res.end( "-1" );
 	    }
 	    else if (packetnr > -1) {
@@ -415,22 +433,16 @@ function processDataChunks(user, wordid, res, packetnr) {
 	    // it's waiting to for the data to be complete:
 
 	    if (packetnr != userdata[user].currentword.lastpacketnr) {
-		
 		// We know this is not the last packet, so reply to it quickly:
 		res.end("0");
-		
-		// Emit an event to the listener holding back the reply to the last packet
-		// (This is just for the odd possibility that packages would arrive
-		// in a strange order.)
-		process.emit('user_event', user, wordid,'lastPacketCheck', null);
 	    }
 	    else {
-		// We're dealing with the last packet; Let's see if we have received all packets:
-		// Count packets, see if it matches our nubmer:
-
+		// We're dealing with the last packet; Store the reply object in a safe place
 		userdata[user].lastPacketRes=res;
-		process.emit('user_event', user, wordid,'lastPacketCheck', null);
 	    }
+	    // Let's see if we have received all packets:
+	    // Send an event to count packets and proceed
+	    process.emit('user_event', user, wordid,'last_packet_check', null);
 	}
     }
 }
@@ -467,7 +479,7 @@ function checkLastPacket(user) {
  */
 
 
-function syncAudioAnalysis(user) {
+function asyncAudioAnalysis(user) {
 
     // Which part of the buffer can be already analysed?
     // Let's suppose for now that the packets arrive in order and so
@@ -495,15 +507,15 @@ function syncAudioAnalysis(user) {
 
     
 
-    if (analysis_range_start > audioconf.frame_length_bits - audioconf.frame_step_bits) 
+    if (analysis_range_start > audioconf.frame_length_samples - audioconf.frame_step_samples) 
     {
 	// if we are not dealing with the first bits of the file, 
 	// take into account the frame overlap (ie. include a bit 
 	// from previous package):
 	
 	analysis_range_start -= 
-	    Math.floor( audioconf.frame_length_bits / 
-			audioconf.frame_step_bits ) * audioconf.frame_step_bits; 
+	    Math.floor( audioconf.frame_length_samples / 
+			audioconf.frame_step_samples ) * audioconf.frame_step_samples; 
     }
 
     // and floor the end to the closesti multiple of framestep:
@@ -511,7 +523,7 @@ function syncAudioAnalysis(user) {
     // buffer so the last bits of audio signal will be analysed and 
     // fill the buffer with tiny noise for that; Well, we don't seem to be doing it here now.
     
-    var analysis_range_end= (userdata[user].currentword.bufferend - (userdata[user].currentword.bufferend % audioconf.frame_step_bits));
+    var analysis_range_end= (userdata[user].currentword.bufferend - (userdata[user].currentword.bufferend % audioconf.frame_step_samples));
     var recog_range_end= userdata[user].currentword.bufferend;
 
     // Immediately update the range ends so things don't get called twice!
@@ -522,23 +534,23 @@ function syncAudioAnalysis(user) {
 
     var analysis_range_length = analysis_range_end - analysis_range_start;
 
-    var analysis_start_frame =  (analysis_range_start/ audioconf.frame_step_bits);
-    var analysis_end_frame = (analysis_range_end/ audioconf.frame_step_bits);
-    var analysis_frame_length = (analysis_range_length / audioconf.frame_step_bits);
+    var analysis_start_frame =  (analysis_range_start/ audioconf.frame_step_samples);
+    var analysis_end_frame = (analysis_range_end/ audioconf.frame_step_samples);
+    var analysis_frame_length = (analysis_range_length / audioconf.frame_step_samples);
     
-    var result_range_length = analysis_range_length - Math.floor(audioconf.frame_length_bits/
-								 audioconf.frame_step_bits) * audioconf.frame_step_bits;
+    var result_range_length = analysis_range_length - Math.floor(audioconf.frame_length_samples/
+								 audioconf.frame_step_samples) * audioconf.frame_step_samples;
     
-    var overlap_frames = Math.ceil((audioconf.frame_length_bits - audioconf.frame_step_bits)/ audioconf.frame_step_bits );
+    var overlap_frames = Math.ceil((audioconf.frame_length_samples - audioconf.frame_step_samples)/ audioconf.frame_step_samples );
     
     userdata[user].currentword.featureend = analysis_end_frame;
-
+    /*
     debugout("******** Sending to audio analysis: " + already_sent_to_analysis +"-"+userdata[user].currentword.bufferend +
 	     " --> framed to " + analysis_range_start + 
 	     " - " + analysis_range_end +
 	     " (frames " +
-	     (analysis_range_start/ audioconf.frame_step_bits) + "-" +
-	     (analysis_range_end/ audioconf.frame_step_bits) + ")");
+	     (analysis_range_start/ audioconf.frame_step_samples) + "-" +
+	     (analysis_range_end/ audioconf.frame_step_samples) + ")");
     
     debugout("******** Waiting in return: " + 
 	     " --> framed to " + analysis_start_frame * audioconf.dimensions +
@@ -546,7 +558,7 @@ function syncAudioAnalysis(user) {
 	     " (frames " +
 	     (analysis_start_frame) + "-" +
 	     ((analysis_end_frame-overlap_frames) ) + ")");
-    
+    */
 
     if (analysis_range_length > 0) {
 
@@ -592,8 +604,7 @@ function syncAudioAnalysis(user) {
 
 function send_to_recogniser(user, datastart, dataend) {
 
-    //console.log("************ Sending to recogniser "+(dataend - datastart)+" floats of data!");
-
+    //debugout("************ Sending to recogniser "+(dataend - datastart)+" floats of data!");
     // Write the floats into a 16-bit signed integer buffer:
 
     pcmdata = new Buffer( (dataend-datastart) /2);
@@ -603,7 +614,6 @@ function send_to_recogniser(user, datastart, dataend) {
 
     pcmindex=0;
 
-
     for (var i = datastart; i < datastart+(pcmdata.length*2); i+=4) {
 	try {
 	    pcmdata.writeInt16LE( (userdata[user].audiobinarydata.readFloatLE(i) * 32767), pcmindex );
@@ -612,12 +622,12 @@ function send_to_recogniser(user, datastart, dataend) {
 	}
 	catch (err) {	    
 	    pcmindex+=2;
-	    //console.log(err.toString());
+	    //debugout(err.toString());
 	    notokcount++;
 	}
     }
     if (notokcount > 0) {
-	console.log("ERRRRROOOOORRRRRSSSS!!!!!!!!  Bad floats in "+notokcount+" of "+(okcount+notokcount)+" values");
+	debugout("ERRRRROOOOORRRRRSSSS!!!!!!!!  Bad floats in "+notokcount+" of "+(okcount+notokcount)+" values");
 
     }
 
@@ -642,7 +652,7 @@ function send_to_recogniser(user, datastart, dataend) {
 
 process.on('user_event', function(user, wordid, eventname, eventdata) {
 
-    debugout( 'EVENT: user '+user+' wordid '+wordid +" eventname "+eventname); 
+    debugout( '\x1b[36m%s\x1b[0m', 'EVENT: user '+user+' wordid '+wordid +" eventname "+eventname); 
 
     if (eventname == 'segmenter_loaded') {
 	userdata[user].segmenter_loaded = true;
@@ -663,13 +673,13 @@ process.on('user_event', function(user, wordid, eventname, eventdata) {
 	}
 	else
 	{		    
-	    if (eventname == 'lastPacketCheck' ) {
+	    if (eventname == 'last_packet_check' ) {
 		checkLastPacket(user);	    
 	    }
-	    else if (eventname ==  'sendAudioForAnalysis' ) {
-		syncAudioAnalysis(user);	    
+	    else if (eventname ==  'send_audio_for_analysis' ) {
+		asyncAudioAnalysis(user);	    
 	    }
-	    else if (eventname ==  'featDone') {
+	    else if (eventname ==  'features_done') {
 		userdata[user].currentword.featureprogress [eventdata.packetcode] = eventdata.maxpoint;
 		userdata[user].currentword.featuresdone = userdata[user].currentword.featureprogress [0]
 
@@ -689,11 +699,12 @@ process.on('user_event', function(user, wordid, eventname, eventdata) {
 		}
 		else 
 		{
-		    console.log("SEGMENTATION FAILED!");
+		    debugout("SEGMENTATION FAILED!");
 		    userdata[user].currentword.segmentation = null;	
-
 		    userdata[user].currentword.segmentation_complete = true;
-		    
+
+		    // Segmentation failed, let's send a zero score to the client:
+		    send_score_and_clear(user, "0");
 		}
 		    
 		check_feature_progress(user);
@@ -707,13 +718,16 @@ process.on('user_event', function(user, wordid, eventname, eventdata) {
 	    }	
 	    else if (eventname == 'classification_done') {
 		userdata[user].currentword.phoneme_classes = eventdata.classification
-		
-		
+				
 		// While debugging with Aleks we don't want to rely on the ASR component
-		calc_score_and_send_reply(user);
+		// calc_score_and_send_reply(user);
+		
+		
 	    }
-	    else
-	    {
+	    else if (eventname == 'scoring_done') {
+		send_score_and_clear(user, eventdata.score);
+	    }
+	    else  {
 		debugout("Don't know what to do with this event!");
 	    }
 	}
@@ -740,7 +754,7 @@ function check_feature_progress(user) {
 	}
 	else {
 	    
-	    debugout("*** Data processed up to the bufferend, was it the last packet already? lastpacketnr: "+ userdata[user].currentword.lastpacketnr);
+	    //debugout("*** Data processed up to the bufferend, was it the last packet already? lastpacketnr: "+ userdata[user].currentword.lastpacketnr);
 	    
 	    if (userdata[user].currentword.segmentation_complete)  {
 		
@@ -769,21 +783,16 @@ function check_feature_progress(user) {
 }
 
 
-function calc_score_and_send_reply(user) {
+function send_score_and_clear(user, wordscore) {
 
     debugout("HEAR HEAR; Let's return the results finally!");
 
     // Send a random number back, as we don't know of any better.
-    wordscore =  Math.round(5.0*Math.random());
-
-
+    //wordscore =  Math.round(5.0*Math.random());
+    
     
     userdata[user].lastPacketRes.end( wordscore.toString() );
-	//JSON.stringify(
-	//wordscr
-	//{score: wordscore, 
-	// recognised_word: userdata[user].currentword.recresult,
-	// msg: "<br>All " + userdata[user].currentword.lastpacketnr +" packets received!"}) );
+
     
     
     logging.log_scoring({user: user,

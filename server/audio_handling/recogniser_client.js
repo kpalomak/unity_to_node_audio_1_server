@@ -17,7 +17,7 @@ var events = require('events');
 // constructor:
 function RecogniserClient (conf, user, segmentword) {//(conf, user, segmentword) {
     
-    console.log("Initialising: "+conf+", "+user+", "+segmentword);
+    debugout("Initialising: "+conf+", "+user+", "+segmentword);
 
     this.recog_result = null;
     this.client = null;    
@@ -47,11 +47,11 @@ function RecogniserClient (conf, user, segmentword) {//(conf, user, segmentword)
     });
 
     this.client.connect(PORT, HOST, function() {	
-	console.log('CONNECTED TO: ' + HOST + ':' + PORT + " --> " + that.client.address().port);
+	debugout('CONNECTED TO: ' + HOST + ':' + PORT + " --> " + that.client.address().port);
 	// Write a message to the socket as soon as the client is connected:
 	that.connected = true;
 	that.state='init';
-	//console.log(this);
+	//debugout(this);
 	that.define_speaker(that.user, that.word_to_be_segmented);
 	
     });
@@ -61,15 +61,15 @@ function RecogniserClient (conf, user, segmentword) {//(conf, user, segmentword)
     
     
     this.client.on('data', function(data) {
-	console.log("Got data from port "+ that.client.address().port +" ("+that.client_type+") >>>"+(data.toString().split('\n')[0])+"<<<");
-	//console.log("Got data! My state is "+ that.state +" and my word is "+ that.word_to_be_segmented+": "+data);
+	debugout("Got data from port "+ that.client.address().port +" ("+that.client_type+") >>>"+(data.toString().split('\n')[0])+"<<<");
+	//debugout("Got data! My state is "+ that.state +" and my word is "+ that.word_to_be_segmented+": "+data);
 	
 	if (data.toString().substr(0,23) == '0000000000000000027 200') {
 
-	    //console.log('recogniser says OK (my state is '+state+')');
+	    //debugout('recogniser says OK (my state is '+state+')');
 	    
 	    if (that.state == 'init') {
-		console.log(' --> grammar_def');		
+		debugout(' --> grammar_def');		
 		that.state = 'grammar-def';
 		that.define_grammar(that.recog_conf.grammar);
 	    }
@@ -77,24 +77,24 @@ function RecogniserClient (conf, user, segmentword) {//(conf, user, segmentword)
 	    else if (that.state == 'grammar-def') {		
 		if (that.word_to_be_segmented != null) {
 		    process.emit('user_event', that.user, that.word_id, 'segmenter_loaded', {word:that.word_to_be_segmented});
-		    console.log(' --> Next we want to define_word');
+		    debugout(' --> Next we want to define_word');
 		    that.state = 'segmenter_loaded';
 		}
 		else {
-		    console.log(' --> Next we want to start_recog');
+		    debugout(' --> Next we want to start_recog');
 		    process.emit('user_event', that.user, that.word_id, 'recogniser_loaded',{word:that.word_to_be_segmented});
 		    that.state = 'recog_loaded';
 		}
 	    }
 
 	    else if (that.state == 'word-def') {
-		console.log(' --> let\s go segment!');
+		debugout(' --> let\s go segment!');
 		that.state = 'segment';
 		process.emit('user_event', that.user, that.word_id, 'segmenter_ready',{word:that.word_to_be_segmented});
 		//initcallback(res);
 	    }
 	    else if (that.state == 'start_recog') {
-		console.log(' --> let\'s go recognise!');
+		debugout(' --> let\'s go recognise!');
 		that.state = 'recognise';
 		process.emit('user_event', that.user, that.word_id, 'recogniser_ready',{word:that.word_to_be_segmented});
 
@@ -106,11 +106,11 @@ function RecogniserClient (conf, user, segmentword) {//(conf, user, segmentword)
 	    arr =  data.toString().split("\n");
 	    if (arr[1].substr(0,20) == 'Completion-Cause:000') {
 		/*this.*/word = arr[4];
-		console.log("### Recognised \""+word+"\" ###");
+		debugout("### Recognised \""+word+"\" ###");
 		process.emit('user_event', that.user, that.word_id, 'recognised',{word:that.word_to_be_segmented});
 	    }
 	    else {
-		console.log("Something went wrong: \n"+data);
+		debugout("Something went wrong: \n"+data);
 		process.emit('user_event', that.user, that.word_id, 'recognition_error',{word:that.word_to_be_segmented});
 
 	    }
@@ -124,11 +124,11 @@ function RecogniserClient (conf, user, segmentword) {//(conf, user, segmentword)
 	    arr =  data.toString().split("\n");
 	    if (arr[1].substr(0,20) == 'Completion-Cause:000') {
 		/*this.*/segmentation = arr[4];
-		console.log("### Segmented \""+segmentation+"\" ###");
+		debugout("### Segmented \""+segmentation+"\" ###");
 		process.emit('user_event', that.user, that.word_id, 'segmented',{word:that.word_to_be_segmented});
 	    }
 	    else {
-		console.log("Something went wrong: \n"+data);
+		debugout("Something went wrong: \n"+data);
 		process.emit('user_event', that.user, that.word_id, 'segmentation_error',{word:that.word_to_be_segmented});
 	    }
 	    that.client.pause();
@@ -136,7 +136,7 @@ function RecogniserClient (conf, user, segmentword) {//(conf, user, segmentword)
 	    //that.define_word("choose");
 	}
 
-	else { console.log("Does not fit this:>>\n"+data+"\n<<");} 
+	else { debugout("Does not fit this:>>\n"+data+"\n<<");} 
 
 
 
@@ -145,17 +145,17 @@ function RecogniserClient (conf, user, segmentword) {//(conf, user, segmentword)
     });
     
     this.client.on('error', function (err) {
-	console.log(err.stack);
+	debugout(err.stack);
     });
 
     // Add a 'close' event handler for the client socket
     this.client.on('close', function() {
-	console.log('Connection closed');
+	debugout('Connection closed');
     });
     
     
     RecogniserClient.prototype.init_recog = function () {
-	console.log("************************************************************************ start_recog!");
+	debugout("************************************************************************ start_recog!");
 
 	this.state = 'start_recog';
 	this.client_type = 'recogniser';
@@ -165,7 +165,7 @@ function RecogniserClient (conf, user, segmentword) {//(conf, user, segmentword)
 
        
     RecogniserClient.prototype.init_segmenter = function (word, word_id) {
-	console.log("************************************************************************ start_segment!");
+	debugout("************************************************************************ start_segment!");
 	this.word_to_be_segmented = word;
 	this.word_id = word_id;
 	this.state = 'word-def';
@@ -199,10 +199,10 @@ function RecogniserClient (conf, user, segmentword) {//(conf, user, segmentword)
 	
 	
 	msg=msgpad+(msglength) + msg;
-	//console.log("========== msg to recogniser ==========");
-	//console.log(msg);
-	//console.log("==========/msg to recogniser ==========");
-	//console.log("msg to recog: >"+msg+"<");
+	//debugout("========== msg to recogniser ==========");
+	//debugout(msg);
+	//debugout("==========/msg to recogniser ==========");
+	//debugout("msg to recog: >"+msg+"<");
 
 	
 	return msg;
@@ -220,7 +220,7 @@ function RecogniserClient (conf, user, segmentword) {//(conf, user, segmentword)
 		null ),	    
 	    function(err) {
 		if (err) {
-		    console.log(err.stack);
+		    debugout(err.stack);
 		}
 		else {
 		    dummy = 1;
@@ -232,11 +232,11 @@ function RecogniserClient (conf, user, segmentword) {//(conf, user, segmentword)
 
     RecogniserClient.prototype.define_word = function (word) {
 
-	console.log(" =================> Trying to define current word as "+word);
+	debugout(" =================> Trying to define current word as "+word);
 
 	var current_port = this.client.address().port;
 	
-	console.log(current_port + " ("+this.client_type+") =================> Trying to define current word as "+word + " (word_id "+this.word_id+")");
+	debugout(current_port + " ("+this.client_type+") =================> Trying to define current word as "+word + " (word_id "+this.word_id+")");
 	if (this.connected) {
 	    this.client.write( 
 		mrcp_message (
@@ -246,20 +246,20 @@ function RecogniserClient (conf, user, segmentword) {//(conf, user, segmentword)
 		    null ), 
 		function (err) {
 		    if (err) {
-			console.log(err.stack);
+			debugout(err.stack);
 		    }			    
 		});	
 	}
 	else {
-	    console.log("Recogniser not connected yet! (word="+this.word_to_be_segmented+" state="+this.state+")");
+	    debugout("Recogniser not connected yet! (word="+this.word_to_be_segmented+" state="+this.state+")");
 	}
     }
 
 
     RecogniserClient.prototype.define_speaker = function (speaker, word) {
-	//console.log(speaker);
+	//debugout(speaker);
 	//function define_speaker(speaker) {
-	console.log("=========> Trying to define current speaker as "+speaker +" (my word is "+word+")");
+	debugout("=========> Trying to define current speaker as "+speaker +" (my word is "+word+")");
 	if (this.connected) {
 	    this.client.write( 
 		mrcp_message (
@@ -270,12 +270,12 @@ function RecogniserClient (conf, user, segmentword) {//(conf, user, segmentword)
 		    null ), 
 		function (err) {
 		    if (err) {
-			console.log(err.stack);
+			debugout(err.stack);
 		    }			    
 		});	
 	}
 	else {
-	    console.log("Recogniser not connected yet! (word="+word_to_be_segmented+" state="+this.state+")");
+	    debugout("Recogniser not connected yet! (word="+word_to_be_segmented+" state="+this.state+")");
 	}
     }
 
@@ -283,7 +283,7 @@ function RecogniserClient (conf, user, segmentword) {//(conf, user, segmentword)
     
 
     RecogniserClient.prototype.start_recog = function() {
-	console.log("Starting recog, are we here ever?");
+	debugout("Starting recog, are we here ever?");
 	if (this.connected) {
 	    this.client.write( 
 		mrcp_message (
@@ -293,12 +293,12 @@ function RecogniserClient (conf, user, segmentword) {//(conf, user, segmentword)
 		    null ), 
 		function (err) {
 		    if (err) {
-			console.log(err.stack);
+			debugout(err.stack);
 		    }			    
 		});	
 	}
 	else {
-	    console.log("Recogniser not connected yet! (word="+this.word_to_be_segmented+" state="+this.state+")");
+	    debugout("Recogniser not connected yet! (word="+this.word_to_be_segmented+" state="+this.state+")");
 	}
     }
     
@@ -331,16 +331,16 @@ function RecogniserClient (conf, user, segmentword) {//(conf, user, segmentword)
     RecogniserClient.prototype.process_audio_queue = function() {
 	if (this.connected) {
 	    if (this.sending_data == false) {
-		//console.log("???????????? Data sending free to use!");
+		//debugout("???????????? Data sending free to use!");
 		if (this.audio_queue.length > 0) {
-		    //console.log("???????????? Packets in queue, let's send");
+		    //debugout("???????????? Packets in queue, let's send");
 		    this.sending_data=true;
 		    data_package = this.audio_queue.splice(0,1)
 		    this.send_audio_packets(data_package[0], 0, 0);
 		}
 	    }
 	    else {
-	        console.log("???????????? word "+this.word_to_be_segmented+" Data sending in progress, let's wait "+ this.recog_conf.pause_between_packets+" ms and try again");
+	        debugout("???????????? word "+this.word_to_be_segmented+" Data sending in progress, let's wait "+ this.recog_conf.pause_between_packets+" ms and try again");
 		var that = this;	
 		setTimeout (function() {
 		    that.process_audio_queue();
@@ -348,7 +348,7 @@ function RecogniserClient (conf, user, segmentword) {//(conf, user, segmentword)
 	    }
 	}
 	else {
-	    console.log("Recogniser not connected yet! (word="+that.word_to_be_segmented+" state="+that.state+")");
+	    debugout("Recogniser not connected yet! (word="+that.word_to_be_segmented+" state="+that.state+")");
 	}
     }
 
@@ -359,19 +359,19 @@ function RecogniserClient (conf, user, segmentword) {//(conf, user, segmentword)
 
 	var current_port = this.client.address().port;
 
-	//console.log((data.length-i));
-	//console.log(recog_conf.packet_size);
-	//console.log(Math.min( (data.length-i), recog_conf.packet_size));  
+	//debugout((data.length-i));
+	//debugout(recog_conf.packet_size);
+	//debugout(Math.min( (data.length-i), recog_conf.packet_size));  
 	if (data.length==0)
 	{
-	    console.log(current_port + " ###################### FINISHING AUDIO!!!! ("+this.client_type+") My word is "+this.word_to_be_segmented );
+	    debugout(current_port + " ###################### FINISHING AUDIO!!!! ("+this.client_type+") My word is "+this.word_to_be_segmented );
 	}
 
 	this_packet_size = Math.min( (data.length-i), this.recog_conf.packet_size);    
 
-	console.log(current_port + "("+this.client_type+") Sending "+data.length+" bytes of data: Word is set to "+this.word_to_be_segmented);
+	debugout(current_port + "("+this.client_type+") Sending "+data.length+" bytes of data: Word is set to "+this.word_to_be_segmented);
 	//if (this_packet_size == 0) {
-	//	console.log("###################### SIZE 0 PACKET SENT!!!! ###########################");
+	//	debugout("###################### SIZE 0 PACKET SENT!!!! ###########################");
 	//}
 
 	var that = this;
@@ -382,34 +382,34 @@ function RecogniserClient (conf, user, segmentword) {//(conf, user, segmentword)
 		   'value' : this_packet_size }],
 		data.slice(i, i+this_packet_size ) ),
 	    function (err) {
-		//console.log("??????????????? wrote to msg queue, now what? (i="+i+")");
+		//debugout("??????????????? wrote to msg queue, now what? (i="+i+")");
 		if (err) {
-		    //console.log("??????????????? we have error 1: "+err);
-		    console.log(err.stack);
+		    //debugout("??????????????? we have error 1: "+err);
+		    debugout(err.stack);
 		} 
 		else 
 		{
-		    //console.log("????? Writing to recogniser "+i+"-"+(i+this_packet_size));
-		    //console.log("data.slice("+i+", "+(i+this_packet_size)+")" );
-		    //console.log(data.slice(i, i+this_packet_size));
+		    //debugout("????? Writing to recogniser "+i+"-"+(i+this_packet_size));
+		    //debugout("data.slice("+i+", "+(i+this_packet_size)+")" );
+		    //debugout(data.slice(i, i+this_packet_size));
 		    if (this_packet_size > 0) {
 			that.client.write( data.slice(i, i+this_packet_size), function (err) {
-			    //console.log("??????????????? wrote to msg queue, now what?");
+			    //debugout("??????????????? wrote to msg queue, now what?");
 
 			    if (err) {		
-				//console.log("??????????????? we have error 2: "+err);
-				console.log(err.stack);
+				//debugout("??????????????? we have error 2: "+err);
+				debugout(err.stack);
 			    } else {
 				if (i+this_packet_size < data.length)
 				{
 				    i+=that.recog_conf.packet_size;
-				    //console.log("??????????????? calling myself at "+i);
+				    //debugout("??????????????? calling myself at "+i);
 				    setTimeout (function() {
 					that.send_audio_packets(data,i, queue_index);
 				    }, that.recog_conf.pause_between_packets);
 				}
 				else {
-				    //console.log("??????????????? !"+(i+this_packet_size)+" < "+data.length);
+				    //debugout("??????????????? !"+(i+this_packet_size)+" < "+data.length);
 				    that.sending_data = false;
 				    that.eventEmitter.emit('audio_packages_sent');
 				}
@@ -434,6 +434,10 @@ function RecogniserClient (conf, user, segmentword) {//(conf, user, segmentword)
     }
 }
 
+
+var debugout = function(msg) {
+    console.log("\x1b[31m%s\x1b[0m",msg);
+}
 
 module.exports = RecogniserClient;
 			/* = { 

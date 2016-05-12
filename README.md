@@ -59,7 +59,7 @@ computer that runs the server.
   * `audio_analyser_all.js` _runs the feature extraction script and writes the features to a given buffer_
   * `audio_analyser_all.sh` _uses SPTK to create 30dim features from audio data (not required yet!)_
   * `recogniser_client.js` _runs the recogniser backend instance(s)_
-  * `KALLE'S FILE HERE` _(this is a place for the fur hat scoring module)_
+  * `fur_hat_scorer.js` _This is a skeleton for a simple scoring module)_
 * `game_data_handling/`
   * `logging.js` _writes log files of player activity_
   * `game_data_handler.js` _saves and loads player progress_
