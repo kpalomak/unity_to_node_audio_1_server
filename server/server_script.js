@@ -822,9 +822,9 @@ function send_score_and_clear(user, total_score, phoneme_scores) {
     logging.log_scoring({user: user,
 			 packetcount: userdata[user].currentword.lastpacketnr,
 			 word_id : userdata[user].currentword.id,
-			 score: wordscore, 
+			 score: total_score, 
 			 reference : userdata[user].currentword.reference,
-			 phoneme_scores : phoneme_scores
+			 phoneme_scores : phoneme_scores,
 			 segmentation: userdata[user].currentword.segmentation, 
 			 //classification: userdata[user].currentword.phoneme_classes 
 			});
