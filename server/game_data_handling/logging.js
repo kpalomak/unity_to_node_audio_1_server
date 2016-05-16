@@ -8,6 +8,15 @@ var fs = require('fs');
 
 
 
+var debugout = function(user, msg) {
+    console.log("\x1b[35m%s\x1b[0m", get_date_time().datetime + ' '+user + ': '+msg);
+}
+
+
+
+
+
+
 
 // constructor:
 //function Logging () {    
@@ -16,7 +25,7 @@ var fs = require('fs');
 var log_event = function( worthy_stuff) {
 
     var table = 'events';
-    insert_to_db( worthy_stuff, table);
+    insert_to_db(  worthy_stuff, table);
 } 
     
 var log_scoring = function( worthy_stuff ) {
@@ -30,6 +39,8 @@ var log_scoring = function( worthy_stuff ) {
 
 var insert_to_db = function( data, table ) {
 
+    var user = data.user;
+
     var logfile = 'log/'+table+'.txt';
 
     var thismoment = get_date_time();
@@ -42,9 +53,10 @@ var insert_to_db = function( data, table ) {
 	logdata += key+": \""+data[key]+"\", ";
     });
     logdata += '\n';
+
     fs.appendFile(logfile, logdata, function (err) {
 	if (err) {
-	    console.log('could not write log to file '+logfile);
+	    debugout(user, 'could not write log to file '+logfile);
 	}
     });
 
@@ -57,24 +69,26 @@ var insert_to_db = function( data, table ) {
     var db = require ('monk')(conf.database.address);    
     var collection = db.get(table);	
 
-    console.log("Trying to log:");
-    console.log(data);
+    debugout(user, "Trying to log:");    
+    Object.keys(data).forEach(function(key){
+	debugout(user, "   "+ key + ": " +data[key]);
+    });
     var promise = collection.find({});
     
     collection.find({}, {}, function (data) {
-	console.log("found data from db");
-	console.log(data);
+	debugout("found data from db");
+	debugout(data);
     });
     
     collection.insert({name: "foo", data:data}, function(err,doc){
 	if (err)  
 	{
-	    console.log("LOGGING ERROR! (this one in logging.js function log_scoring adding to table "+table+")");
-	    console.log(err);
+	    debugout(user, "LOGGING ERROR! (this one in logging.js function log_scoring adding to table "+table+")");
+	    debugout(user, err);
 	}
 	else {
-	    console.log("Logged into "+table );
-	    console.log(doc);
+	    debugout(user, "Logged into "+table );
+	    debugout(user, doc);
 	}
 	//db.close();
 
@@ -116,4 +130,4 @@ function get_date_time() {
 }
 
 
-module.exports = { log_event : log_event, log_scoring: log_scoring };
+module.exports = { log_event : log_event, log_scoring: log_scoring , get_date_time: get_date_time};

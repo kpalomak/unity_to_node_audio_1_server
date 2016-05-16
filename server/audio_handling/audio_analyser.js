@@ -7,24 +7,23 @@
  */
 
 if (process.env.NODE_ENV !== 'production'){
-    console.log('Requiring longjohn:');
     longjohn = require('longjohn');
-
     longjohn.async_trace_limit = 25;   // defaults to 10
 }
 
+var logging = require('../game_data_handling/logging.js');
 
-//var eventEmitter = require('./emitters.js');
 
-//var config=require('config');
-var spawn = require('child_process').spawn;
-var exec = require('child_process').exec;
 
-var feature_timeout_ms = 15000; // 15s 
+////var config=require('config');
+//var spawn = require('child_process').spawn;
+//var exec = require('child_process').exec;
+
+//var feature_timeout_ms = 15000; // 15s 
 var DEBUG_TEXTS = true;
-//var streamifier = require('streamifier');
+////var streamifier = require('streamifier');
 
-var sptk_path='/usr/local/bin/';
+//var sptk_path='/usr/local/bin/';
 
 var debug = true;
 
@@ -40,10 +39,9 @@ if (debug) {
 var all_feature_analysis = require('./audio_analyser_all');
 
 
-
 function compute_features(audioconf, inputbuffer,outputbuffer, user, word_id, packetcode, maxpoint) {
 
-    print_debug("============  FEATURE COMPUTATION, HOW EXCITING!!! packetnr "+ packetcode +" range: "+ (maxpoint-inputbuffer.length)+"-"+maxpoint+" ==========");
+    print_debug(user, "=FEAT: packetnr "+ packetcode +" range: "+ (maxpoint-inputbuffer.length)+"-"+maxpoint+" ==========");
 
     //this.audioconf = audioconf;
     //this.inputbuffer = inputbuffer;
@@ -61,7 +59,7 @@ function compute_features(audioconf, inputbuffer,outputbuffer, user, word_id, pa
 	    addcount++;
 	}
     }	       
-    print_debug("Added noise for "+addcount +" entries");
+    print_debug(user, "Added noise for "+addcount +" entries");
 
     //mfcc_analysis.compute_mfcc(audioconf, noisedbuffer,outputbuffer, user, word_id, packetcode);
     //lsf_analysis.compute_lsf(audioconf, noisedbuffer,outputbuffer, user, word_id, packetcode);
@@ -73,10 +71,10 @@ function compute_features(audioconf, inputbuffer,outputbuffer, user, word_id, pa
 
 
 
-function print_debug(text) {
+function print_debug(user,text) {
     if (DEBUG_TEXTS) 
     {
-	console.log(text);
+	console.log( "\x1b[37m%s\x1b[0m", logging.get_date_time().datetime + ' '+user + ': '+text);
     }
 }
 

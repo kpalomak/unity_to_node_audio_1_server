@@ -18,14 +18,14 @@ var fs = require('fs');
 var conf = require('./config');
 
 var logging = require('./game_data_handling/logging');
-var gamedatahandler = require('./game_data_handling/game_data_handler');
-
+var game_data_handler = require('./game_data_handling/game_data_handler');
+var user_handler = require('./game_data_handling/user_handler.js');
 
 var userdata = {};
 
-var RecogniserClient = require('./audio_handling/recogniser_client');
+var recogniser_client = require('./audio_handling/recogniser_client');
 
-var SegmentationHandler  = new require('./score_handling/a_less_impressive_segmentation_handler.js');
+var segmentation_handler  = new require('./score_handling/a_less_impressive_segmentation_handler.js');
 
 var scorer =  require('./score_handling/fur_hat_scorer.js');
 
@@ -44,56 +44,10 @@ if (process.env.NODE_ENV !== 'production'){
 function debugout(format, msg) {
     if (debug==true) {
 	if (msg)
-	    console.log(format, msg);
+	    console.log(format, logging.get_date_time().datetime + ' ' +msg);
 	else
-	    console.log( '\x1b[33m%s\x1b[0m', format);
+	    console.log( '\x1b[33m%s\x1b[0m', logging.get_date_time().datetime  +' '+ format);
     }
-}
-
-
-/*
- *
- *     USER CONTROL
- * 
- */
-
-
-/*
- * Extremely lazy user control!
- * 
- * Keep in mind this is not a production system in any way!
- */
-
-
-var user_credential_file = './users.json';
-
-var passwords = JSON.parse(fs.readFileSync(user_credential_file, 'utf8'));
-
-//var user_data_dir = './users/';
-
-function authenticate(req, res, callback) {
-    username = req.headers['x-siak-user'];
-    password = req.headers['x-siak-password'];
-
-    //debugout("Authenticating >"+username + "< >" + password +"<!");    
-
-    if (!passwords.hasOwnProperty(username)) {
-	debugout('users does not contain '+user);
-	err= { error: 101,
-		 msg: "unknown username"
-	       }
-    }
-    else if (passwords[username] != password) {
-	debugout('password for '+username +' is not '+ password + ' (should be '+passwords[username]+" )");
-	err= { error: 102,
-		 msg: "username and password do not match"
-	       }	
-    }
-    else
-	err = null;
-    
-    callback( err, username, req, res );
-
 }
 
 
@@ -114,15 +68,15 @@ http.createServer(function (req, res) {
     // JSON parsing is problematic on client, so let's leave this out:
     //res.setHeader('Content-Type', 'application/json');
 
-    authenticate(req, res,
+    user_handler.authenticate(req, res,
 		 function (err, username, req, res) {
 		     if (err) {
-			 debugout("user "+username + " password NOT ok!");
+			 debugout(username +": user "+username + " password NOT ok!");
 			 res.statusCode = 401;
 			 res.end( err.msg );			 
 		     }
 		     else {
-			 debugout("user "+username + " password ok!");
+			 debugout(username + ": user "+username + " password ok!");
 			 if (req.url == "/asr") 
 			 {
 			     operate_recognition (req, res);
@@ -144,6 +98,7 @@ http.createServer(function (req, res) {
 
 }).listen(process.env.PORT || 8001);
 
+debugout('If you don\'t see errors above, you should have a server running on port '+ (process.env.PORT || 8001) );
 
 
 
@@ -170,7 +125,7 @@ http.createServer(function (req, res) {
 
 process.on('user_event', function(user, wordid, eventname, eventdata) {
 
-    debugout(colorcodes.event, 'EVENT: user '+user+' wordid '+wordid +" eventname "+eventname); 
+    debugout(colorcodes.event, user + ': EVENT: wordid '+wordid +" eventname "+eventname); 
 
     if (eventname == 'segmenter_loaded') {
 	userdata[user].segmenter_loaded = true;
@@ -187,7 +142,7 @@ process.on('user_event', function(user, wordid, eventname, eventdata) {
     else 
     {
 	if (wordid != get_current_word_id(user)) {
-	    debugout(colorcodes.event, "this event is for a word that we are not processing at this time (which would be "+get_current_word_id(user)+")");
+	    debugout(colorcodes.event, user + ": this event is for a word that we are not processing at this time (which would be "+get_current_word_id(user)+")");
 	}
 	else
 	{		    
@@ -206,7 +161,7 @@ process.on('user_event', function(user, wordid, eventname, eventdata) {
 			userdata[user].currentword.featuresdone = userdata[user].currentword.featureprogress[n]
 		    }
 		}
-		check_feature_progress(user);
+		//check_feature_progress(user);
 	    }
 	    else if (eventname == 'segmented' ) {
 		if (segmentation.length > 0) {
@@ -219,7 +174,7 @@ process.on('user_event', function(user, wordid, eventname, eventdata) {
 		}
 		else 
 		{
-		    debugout(colorcodes.event, "SEGMENTATION FAILED!");
+		    debugout(colorcodes.event, user + ": SEGMENTATION FAILED!");
 		    userdata[user].currentword.segmentation = null;	
 		    userdata[user].currentword.segmentation_complete = true;
 
@@ -227,14 +182,17 @@ process.on('user_event', function(user, wordid, eventname, eventdata) {
 		    send_score_and_clear(user, "0", null);
 		}
 		    
-		check_feature_progress(user);
+		//check_feature_progress(user);
 
 	    }
 	    else if (eventname ==  'segmentation_error') {
 		userdata[user].currentword.segmentation = null;
 		userdata[user].currentword.segmentation_complete = true;
+	
+		debugout(colorcodes.event, user +": SEGMENTATION FAILED!");
+		send_score_and_clear(user, "0", null);
 		
-		check_feature_progress(user);
+		//check_feature_progress(user);
 	    }	
 	    else if (eventname == 'classification_done') {
 		userdata[user].currentword.phoneme_classes = eventdata.classification
@@ -247,7 +205,7 @@ process.on('user_event', function(user, wordid, eventname, eventdata) {
 		send_score_and_clear(user, eventdata.total_score, eventdata.phoneme_scores);
 	    }
 	    else  {
-		debugout(colorcodes.event, "Don't know what to do with this event!");
+		debugout(colorcodes.event, user + ": Don't know what to do with this event!");
 	    }
 	}
     }
@@ -255,6 +213,69 @@ process.on('user_event', function(user, wordid, eventname, eventdata) {
 
 
 
+
+/*
+ *
+ *   HTTP REPLY FUNCTIONS
+ * 
+ */
+
+
+// Reply to initialisation call:
+function initialisation_reply(user) {    
+    userdata[user].initreply.end( "ok" );
+}
+
+// Reply to word selection call:
+function word_select_reply(user) {
+    userdata[user].readyreply.end( userdata[user].currentword.reference )
+}
+
+
+// Reply to an audio packet call:
+function audio_packet_reply(user,res, packetnr, usevad) {
+    /* Acknowledge client with message:
+       
+       0:  ok, continue
+       -1: ok, that's enought, stop recording
+       
+       We'd like to get the stop command from a VAD module (that checks there has been
+       enough speech before new silence segments) but as we don't have that yet, let's
+       just use some arbitrary limits set in conf file (rather than hard coding! 
+       Surprisingly good style, isn't it?)
+    */
+    if (packetnr == conf.audioconf.packets_per_second * conf.temp_devel_stuff.good_utterance_length_s ) {
+	res.end( "-1" );
+    }
+    else if (packetnr > -1) {
+	res.end( "0" );
+    } 
+}
+
+// Reply to the last packer call:
+function send_score_and_clear(user, total_score, phoneme_scores) {
+
+    debugout(user +": HEAR HEAR; Let's return the results finally!");
+
+    // Send a random number back, as we don't know of any better.
+    //wordscore =  Math.round(5.0*Math.random());
+    
+    
+    userdata[user].lastPacketRes.end( total_score.toString() );
+
+    logging.log_scoring({user: user,
+			 packetcount: userdata[user].currentword.lastpacketnr,
+			 word_id : userdata[user].currentword.id,
+			 score: total_score, 
+			 reference : userdata[user].currentword.reference,
+			 phoneme_scores : phoneme_scores,
+			 segmentation: userdata[user].currentword.segmentation, 
+			 //classification: userdata[user].currentword.phoneme_classes 
+			});
+    
+    clearUpload(user)
+    
+}
 
 
 
@@ -272,7 +293,7 @@ var operate_recognition = function (req,res) {
 
     finalpacket = req.headers['x-siak-final-packet'];
 
-    debugout( '\x1b[33m\x1b[1m%s\x1b[0m', "Received packet for ASR! user: "+user + " packetnr: "+packetnr +" lastpacket? "+finalpacket);
+    debugout( '\x1b[33m\x1b[1m%s\x1b[0m', user + ": Received packet for ASR! user: "+user + " packetnr: "+packetnr +" lastpacket? "+finalpacket);
 
 
     // TODO: Implement user authentication and logging!!!
@@ -340,7 +361,7 @@ var operate_recognition = function (req,res) {
 		/* Sometimes we fail to reply, and some nosy clients try to resend their call.
 		   That would mess up our careful data processing system, so let's ignore those
 		   recalls. */
-		debugout("Packet "+packetnr +" already processed - The client tried resending?");		
+		debugout(user + ": Packet "+packetnr +" already processed - The client tried resending?");		
 	    }
 	    else 
 	    {
@@ -355,7 +376,7 @@ var operate_recognition = function (req,res) {
 		decodedchunks=new Buffer(postdata, 'base64');
 		
 		// Announce our honorable intentions to do a copy from buffer to buffer:
-		debugout( "Copying from index " + 0 + "-"+  decodedchunks.length +
+		debugout( user + ":Copying from index " + 0 + "-"+  decodedchunks.length +
 			  " in source to "+ (arraystart*audioconf.datatype_length) + "-"+   + 
 			  ( (arraystart*audioconf.datatype_length) + decodedchunks.length ) +
 			  " in target buffer (length "+decodedchunks.length+")" );
@@ -368,7 +389,7 @@ var operate_recognition = function (req,res) {
 		
 
 		// What was my idea here?
-		debugout("userdata[user].bufferend = Math.max( "+
+		debugout(user + ": userdata[user].bufferend = Math.max( "+
 			 (arrayend)*audioconf.datatype_length+","+
 			 userdata[user].currentword.bufferend+")");
 
@@ -382,28 +403,36 @@ var operate_recognition = function (req,res) {
 	}
     });    
 }
-debugout('If you don\'t see errors above, you should have a server running on port '+ (process.env.PORT || 8001) );
 
 
 
-function initialisation_reply(user) {    
-    userdata[user].initreply.end( "ok" );
-}
+/*
+ *
+ *  SOME GAME CONTINUITY FUNCTIONS
+ * 
+ */
 
-
-function word_select_reply(user) {
-    userdata[user].readyreply.end( userdata[user].currentword.reference )
-}
 
 
 function get_game_data(user) {
-    return gamedatahandler.getData(user);
+    return game_data_handler.getData(user);
 }
 
 
 function set_game_data(user, new_data) {
-    return gamedatahandler.setData(user,new_data);
+    return game_data_handler.setData(user,new_data);
 }
+
+
+
+
+/*
+ *
+ *  SOME REAL FUNCTIONALITY:
+ *
+ *  1: Init user data structure on first call
+ *     (and reinit when necessary) 
+ */
 
 
 function init_userdata(user) {
@@ -423,38 +452,21 @@ function init_userdata(user) {
 		      audioconf.frame_step_samples * 
 		      audioconf.feature_dim ) );	
 
-	//userdata[user].recogniser_ready = false;
 	userdata[user].segmenter_ready = false;
 
-	// init recogiser and segmenter:
-	//userdata[user].recogniser = new RecogniserClient(recogconf, user, null);
-
-	userdata[user].segmenter = new RecogniserClient(recogconf, user, "init_segmenter");		
+	// init segmenter / recogniser:
+	userdata[user].segmenter = new recogniser_client(recogconf, user, "init_segmenter");		
 	
-	userdata[user].segmentation_handler = new SegmentationHandler(user);
-	
-	debugout("Initialising classifier:");
+	// init segmentation handler / classifier:
+	userdata[user].segmentation_handler = new segmentation_handler(user);
 
     }
     clearUpload(user);
 }
 
 
-function set_word_and_init_recogniser(user, word, word_id) {
-
-
-    debugout("set_word_and_init_recogniser("+word+")!");	
-    userdata[user].segmenter.init_segmenter(word, word_id);
-    userdata[user].segmentation_handler.init_classification(word, word_id);
-
-    
-}
-
-
-
 function clearUpload(user) {
-    debugout('Clearing upload data');
-
+    
     userdata[user].chunkeddata.fill(0);	   
     userdata[user].audiobinarydata.fill(0);
     userdata[user].featuredata.fill(0);
@@ -488,59 +500,55 @@ function clearUpload(user) {
 
 
 
+/*
+ *
+ *  2: Set reference word for segmentation:
+ *    
+ */
+
+
+function set_word_and_init_recogniser(user, word, word_id) {
+
+
+    debugout(user + ": set_word_and_init_recogniser("+word+")!");	
+    userdata[user].segmenter.init_segmenter(word, word_id);
+    userdata[user].segmentation_handler.init_classification(word, word_id);
+
+    
+}
+
+
+/*
+ *
+ *  3-(n) Take in audio packets and process audio:
+ * 
+ */
+
+
+
 function processDataChunks(user, wordid, res, packetnr) {
 
     if (wordid != userdata[user].currentword.id) {
-	debugout("A very troubling occasion, word ids don't match ("+wordid+"!="+userdata[user].currentword.id);
+	debugout(user +": A very troubling occasion, word ids don't match ("+wordid+"!="+userdata[user].currentword.id);
     }
     else 
     {
 	if (array_contains(userdata[user].currentword.analysedpackets, packetnr))
 	{
-	    debugout("Packet "+packetnr +" already processed - Where did the request come from?");
+	    debugout(user + ": Packet "+packetnr +" already processed - Where did the request come from?");
 	    return;
 	}
 
 	// Add the current packetnr to the list of processed packets:
 	userdata[user].currentword.analysedpackets.push(packetnr);
-	debugout('Processing packet '+packetnr);
+	debugout(user + ': Processing packet '+packetnr);
 
 	// Call the asyncAudioAnalysis function (asynchronous processing of new audio data)
 	process.emit('user_event', user, wordid,'send_audio_for_analysis', null);
-	
-
-	/* // One of these is redundant. Let's go through the event processing queue to make things more clear.
-	   // The below code can be removed as soon as things work (again)
-	   asyncAudioAnalysis(user)
-	  
-	if (packetnr > -1) {
-	    // Do stuff with packet of audio data: 
-	    process.emit('user_event', user, wordid,'send_audio_for_analysis', null);
-	}*/
 
 	if (userdata[user].currentword.lastpacketnr < 0) {
-
 	    // We do not know yet what is the last packet.
-	    /* Acknowledge client with message:
-
-	       0:  ok, continue
-	       -1: ok, that's enought, stop recording
-
-	       We'd like to get the stop command from a VAD module (that checks there has been
-	       enough speech before new silence segments) but as we don't have that yet, let's
-	       just use some arbitrary limits set in conf file (rather than hard coding! 
-	       Surprisingly good style, isn't it?)
-	    */
-	    if (packetnr == conf.audioconf.packets_per_second * conf.temp_devel_stuff.good_utterance_length_s ) {
-		res.end( "-1" );
-	    }
-	    else if (packetnr > -1) {
-		res.end( "0" );
-		    //JSON.stringify(		    
-		    //{
-		    //	msg: "<br>Processing packet "+packetnr+" ---"
-		    //} ));
-	    }
+	    audio_packet_reply(user,res,packetnr, true);
 	}
 	else {
 	    // We know what the last packet is;
@@ -549,7 +557,7 @@ function processDataChunks(user, wordid, res, packetnr) {
 
 	    if (packetnr != userdata[user].currentword.lastpacketnr) {
 		// We know this is not the last packet, so reply to it quickly:
-		res.end("0");
+		audio_packet_reply(user,res,packetnr, false);
 	    }
 	    else {
 		// We're dealing with the last packet; Store the reply object in a safe place
@@ -567,6 +575,7 @@ function processDataChunks(user, wordid, res, packetnr) {
 // A somewhat overcomplicated method for checking if all data has been received:
 // (But what can you do? We're in a hurry to process the data and there is no 
 //  guarantee of the packets arriving in right order.)
+
 function check_last_packet(user) {
 
     // Check if we have all the packets in already:    
@@ -577,25 +586,14 @@ function check_last_packet(user) {
     
     if (chunkcount == userdata[user].currentword.lastpacketnr ) {		
 	// Send a null packet to recogniser as sign of finishing:
-	debugout("check_last_packet all good: Calling Finish_audio");
+	debugout(user + ": check_last_packet all good: Calling Finish_audio");
 	userdata[user].segmenter.finish_audio();
     }
     else {
-	debugout("check_last_packet something missing: chunkcount "+ chunkcount +" !=  userdata[user].currentword.lastpacketnr "+  userdata[user].currentword.lastpacketnr);
+	debugout(user + ": check_last_packet something missing: chunkcount "+ chunkcount +" !=  userdata[user].currentword.lastpacketnr "+  userdata[user].currentword.lastpacketnr);
     }
 }
 
-
-
-
-
-
-
-/*
- *
- *     EVEN MORE COMPLEX SERVER LOGIC: AUDIO ANALYSIS
- * 
- */
 
 
 function asyncAudioAnalysis(user) {
@@ -699,7 +697,7 @@ function asyncAudioAnalysis(user) {
     }
     else 
     {
-	debugout("Audio analysis of length 0 requested ("+analysis_range_start+"-"+analysis_range_end+")... This is bad manners.");
+	debugout(user +": Audio analysis of length 0 requested ("+analysis_range_start+"-"+analysis_range_end+")... This is bad manners.");
 
     }
     if (recog_range_end-recog_range_start > 0) {
@@ -708,13 +706,8 @@ function asyncAudioAnalysis(user) {
     }
     else
     {
-	debugout("Sending to recogniser data of length 0 requested ("+recog_range_start+"-"+recog_range_end+")... This is bad manners.");
-    }
-
-
-
-
-    
+	debugout(user + ": Sending to recogniser data of length 0 requested ("+recog_range_start+"-"+recog_range_end+")... This is bad manners.");
+    }    
 }
 
 
@@ -723,117 +716,45 @@ function asyncAudioAnalysis(user) {
 
 function send_to_recogniser(user, datastart, dataend) {
 
-    //debugout("************ Sending to recogniser "+(dataend - datastart)+" floats of data!");
     // Write the floats into a 16-bit signed integer buffer:
+    if (debug) {
+	var okcount=0;
+	var notokcount = 0;
+    }
 
     pcmdata = new Buffer( (dataend-datastart) /2);
-
-    var okcount=0;
-    var notokcount = 0;
-
     pcmindex=0;
 
     for (var i = datastart; i < datastart+(pcmdata.length*2); i+=4) {
 	try {
 	    pcmdata.writeInt16LE( (userdata[user].audiobinarydata.readFloatLE(i) * 32767), pcmindex );
 	    pcmindex+=2;
-	    okcount++;
+	    if (debug) okcount++;
 	}
 	catch (err) {	    
 	    pcmindex+=2;
 	    //debugout(err.toString());
-	    notokcount++;
+	    if (debug) notokcount++;
 	}
     }
-    if (notokcount > 0) {
-	debugout("ERRRRROOOOORRRRRSSSS!!!!!!!!  Bad floats in "+notokcount+" of "+(okcount+notokcount)+" values");
-
+    if (debug && notokcount > 0) {
+	debugout(user + ": ERRRRROOOOORRRRRSSSS!!!!!!!!  Bad floats in "+notokcount+" of "+(okcount+notokcount)+" values");
     }
 
     // Send the 16-bit buffer to recogniser and segmenter processses:
-
-    userdata[user].segmenter.send_audio(pcmdata);
-    //userdata[user].recogniser.send_audio(pcmdata);
-  
+    userdata[user].segmenter.send_audio(pcmdata);  
 }
 
 
 
 
-function check_feature_progress(user) {
 
 
-
-    // Check if it was the last packet:
-    if (userdata[user].currentword.lastpacketnr > -1) {
-
-	// Check if we have all the classification features up to the buffer end:    
-	if ( userdata[user].currentword.featuresdone  < userdata[user].currentword.sent_to_analysis )
-	{
-	    // if not, wait...
-	    debugout("*** Waiting for more features: ("+ userdata[user].currentword.featuresdone.toString() +" / "+  
-		     userdata[user].featureprogress   +
-		     " segment: "+userdata[user].segmentation_complete + 
-		     " recog: "+ userdata[user].recognition_complete +" ) ")
-	}
-	else {
-	    
-	    debugout("*** Data processed up to the bufferend, was it the last packet already? lastpacketnr: "+ userdata[user].currentword.lastpacketnr);
-	    
-	    if (userdata[user].currentword.segmentation_complete)  {
-		
-		if (userdata[user].currentword.state_statistics == null) {
-
-		    if (debug) { 
-			fs.writeFile("upload_data/debug/"+user+"_waveform_input_float", userdata[user].audiobinarydata.slice(0, userdata[user].currentword.bufferend )); 
-			fs.writeFile("upload_data/debug/"+user+"_features_output_float", userdata[user].featuredata.slice(0, userdata[user].currentword.featurebufferend )); 
-		    }
-		    
-		    userdata[user].currentword.state_statistics = "Working...";
-		    
-		    // We have last packet analysed and a segmentation ready, so let's
-		    // calculate statistics and get classification results!
-		    
-		    userdata[user].segmentation_handler.calculate_statistics(
-			userdata[user].currentword.reference,
-			userdata[user].currentword.id,
-			userdata[user].currentword.segmentation, 
-			userdata[user].featuredata.slice(0, userdata[user].currentword.featurebufferend), 
-			audioconf);
-		}
-	    }	   
-	}	
-    }    
-}
-
-
-function send_score_and_clear(user, total_score, phoneme_scores) {
-
-    debugout("HEAR HEAR; Let's return the results finally!");
-
-    // Send a random number back, as we don't know of any better.
-    //wordscore =  Math.round(5.0*Math.random());
-    
-    
-    userdata[user].lastPacketRes.end( total_score.toString() );
-
-    
-    
-    logging.log_scoring({user: user,
-			 packetcount: userdata[user].currentword.lastpacketnr,
-			 word_id : userdata[user].currentword.id,
-			 score: total_score, 
-			 reference : userdata[user].currentword.reference,
-			 phoneme_scores : phoneme_scores,
-			 segmentation: userdata[user].currentword.segmentation, 
-			 //classification: userdata[user].currentword.phoneme_classes 
-			});
-    
-    clearUpload(user)
-    
-}
-
-
+/*
+ *
+ * A FEW HELPER FUNCTIONS
+ *
+ */
 
 // From http://stackoverflow.com/questions/237104/how-do-i-check-if-an-array-includes-an-object-in-javascript
 
@@ -847,8 +768,6 @@ function array_contains(array, obj) {
     return false;
 }
 
-	   
-	   
 function get_next_word_id(user) {
     if (userdata[user].currentword == null) {
 	return 1;

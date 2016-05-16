@@ -60,34 +60,35 @@ Output should be a score between 1 and 5.
 
 */
 
+var logging = require('../game_data_handling/logging.js');
 
 
 var fur_hat_scorer = function(user, word, wordid, segmentation, likelihood) {
 
-    debugout("user: "+user);
-    debugout("word: "+word);
-    debugout("wordid: "+wordid);    
-    debugout("Segmentation:");
+    debugout(user, "user: "+user);
+    debugout(user, "word: "+word);
+    debugout(user, "wordid: "+wordid);    
+    debugout(user, "Segmentation:");
     Object.keys(segmentation).forEach(function(key) {
 	if (typeof(segmentation[key]) === 'object') {
-	    debugout(key+":");	    
+	    debugout(user, key+":");	    
 	    Object.keys(segmentation[key]).forEach(function(key2) {
 		if (typeof(segmentation[key][key2]) === 'object') {
-		    debugout("  " +key2+":");
+		    debugout(user,"  " +key2+":");
 		    Object.keys(segmentation[key][key2]).forEach(function(key3) {
-			debugout("    " +key3+": "+segmentation[key][key2][key3]);
+			debugout(user,"    " +key3+": "+segmentation[key][key2][key3]);
 		    });				
 		}
 		else { 
-		    debugout("  " +key2+": "+segmentation[key][key2]);
+		    debugout(user,"  " +key2+": "+segmentation[key][key2]);
 		}
 	    });
 	}
 	else {
-	    debugout(key+": "+segmentation[key]);
+	    debugout(user,key+": "+segmentation[key]);
 	}
     });
-    debugout("Likelihood: "+likelihood);
+    debugout(user,"Likelihood: "+likelihood);
 
 
     // Here some processing could be made
@@ -99,7 +100,7 @@ var fur_hat_scorer = function(user, word, wordid, segmentation, likelihood) {
        be passed to a logging module. */
 
     phoneme_scores = [];       
-    total_score =  Math.round(5.0*Math.random());
+    total_score =  Math.ceil(5.0*Math.random());
 
     /* When ready, return the score by emitting an event.
        The event call should include an object with score field
@@ -120,8 +121,8 @@ var fur_hat_scorer = function(user, word, wordid, segmentation, likelihood) {
 
 
 /* Text output through this function will be green */
-var debugout = function(msg) {
-    console.log("\x1b[32m%s\x1b[0m",msg);
+var debugout = function(user,msg) {
+    console.log("\x1b[32m%s\x1b[0m", logging.get_date_time().datetime + ' '+user+': '+ msg);
 }
 
 
