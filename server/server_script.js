@@ -604,6 +604,12 @@ function check_last_packet(user) {
 	// Send a null packet to recogniser as sign of finishing:
 	debugout(user + ": check_last_packet all good: Calling Finish_audio");
 	userdata[user].segmenter.finish_audio();
+
+	// For debug let's write the received data in the debug dir:
+	if (debug) { fs.writeFile("upload_data/debug/"+user+"_floatdata", 
+				  userdata[user].audiobinarydata.slice(userdata[user].currentword.vad.speechstart,  
+									 userdata[user].currentword.vad.speechend) ); }
+
     }
     else {
 	debugout(user + ": check_last_packet something missing: chunkcount "+ chunkcount +" !=  userdata[user].currentword.lastpacketnr "+  userdata[user].currentword.lastpacketnr);
@@ -704,15 +710,16 @@ function asyncAudioAnalysis(user) {
 	
 	var analysis_range_end= (userdata[user].currentword.bufferend - (userdata[user].currentword.bufferend % audioconf.frame_step_samples));
 	var recog_range_end= userdata[user].currentword.bufferend;
+
+	// Immediately update the range ends so things don't get called twice!
 	
-	
+	userdata[user].currentword.sent_to_analysis=analysis_range_end;
+	userdata[user].currentword.sent_to_recogniser = recog_range_end;
+
 	if ( (userdata[user].currentword.vad.speechstart > -1) && (analysis_range_end > userdata[user].currentword.vad.speechstart )) {
 
-	    // Immediately update the range ends so things don't get called twice!
-
-	    userdata[user].currentword.sent_to_analysis=analysis_range_end;
-	    userdata[user].currentword.sent_to_recogniser = recog_range_end;
-
+	    analysis_range_start = Math.max( analysis_range_start, (userdata[user].currentword.vad.speechstart));
+	    recog_range_start =  Math.max( recog_range_start, (userdata[user].currentword.vad.speechstart));
 
 	    var analysis_range_length = analysis_range_end - analysis_range_start;
 
