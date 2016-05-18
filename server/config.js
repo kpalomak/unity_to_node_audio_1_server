@@ -37,5 +37,10 @@ module.exports = {
     },
     temp_devel_stuff : {
 	'good_utterance_length_s' : 3
+    },
+    vad : {
+	'window' : 160*4,
+	'speech_frame_thr' : 5,
+	'sil_frame_thr' : 10
     }
 }

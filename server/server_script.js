@@ -24,6 +24,8 @@ var user_handler = require('./game_data_handling/user_handler.js');
 var userdata = {};
 
 var recogniser_client = require('./audio_handling/recogniser_client');
+var vad = require('./audio_handling/vad_stolen_from_sphinx');
+
 
 var segmentation_handler  = new require('./score_handling/a_less_impressive_segmentation_handler.js');
 
@@ -37,7 +39,7 @@ if (process.env.NODE_ENV !== 'production'){
     require('longjohn');
     var debug = true;
 
-    var colorcodes =  {'event' : '\x1b[36m%s\x1b[0m' };
+    var colorcodes =  {'event' : '\x1b[36mserver %s\x1b[0m' };
 }
 
 
@@ -46,7 +48,7 @@ function debugout(format, msg) {
 	if (msg)
 	    console.log(format, logging.get_date_time().datetime + ' ' +msg);
 	else
-	    console.log( '\x1b[33m%s\x1b[0m', logging.get_date_time().datetime  +' '+ format);
+	    console.log( '\x1b[33mserver %s\x1b[0m', logging.get_date_time().datetime  +' '+ format);
     }
 }
 
@@ -293,7 +295,7 @@ var operate_recognition = function (req,res) {
 
     finalpacket = req.headers['x-siak-final-packet'];
 
-    debugout( '\x1b[33m\x1b[1m%s\x1b[0m', user + ": Received packet for ASR! user: "+user + " packetnr: "+packetnr +" lastpacket? "+finalpacket);
+    debugout( '\x1b[33m\x1b[1mserver %s\x1b[0m', user + ": Received packet for ASR! user: "+user + " packetnr: "+packetnr +" lastpacket? "+finalpacket);
 
 
     // TODO: Implement user authentication and logging!!!
@@ -482,6 +484,9 @@ function clearUpload(user) {
     word.lastpacketnr=-2;
     word.analysedpackets=[];
 
+    word.speechstart=-1;
+    word.speechend=-1;
+
     word.bufferend=0;
     word.sent_to_analysis=0;
     word.sent_to_recogniser = 0;
@@ -493,7 +498,18 @@ function clearUpload(user) {
     word.segmentation_complete = false;
     word.state_statistics = null;
 
+    var vad = {};
+    vad.level = 0;
+    vad.background = 20;
+    vad.speechstart = -1;
+    vad.speechend = -1;
+    vad.numsil = 0;
+    vad.numspeech = 0;
+
+    word.vad = vad;
+
     userdata[user].currentword = word;
+
 
 
 }
@@ -599,6 +615,7 @@ function check_last_packet(user) {
 function asyncAudioAnalysis(user) {
 
     // Which part of the buffer can be already analysed?
+
     // Let's suppose for now that the packets arrive in order and so
     // I can send data in in an orderly manner:
 
@@ -608,106 +625,159 @@ function asyncAudioAnalysis(user) {
     var analysis_range_start=already_sent_to_analysis;
     var recog_range_start =already_sent_to_recogniser;
 
+    if ( (userdata[user].currentword.vad.speechend > 0)  && ( analysis_range_start > userdata[user].currentword.vad.speechend) ) {
+	debugout(user +": Whole package after VAD says we're finished!");	
+    }
+    else {
 
-    // There's overlap in the frames; Windows are by default 
-    // 400 samples with a step of 128
-    // so for this hypothetical audio data:
-    // -------------------------------------------------...
-    // |--frame1----|  |--frame5----|  |--frame9----|   ... 
-    //     |--frame2----|  |--frame6----|  |--frame10   ...
-    //         |--frame3----|  |--frame7----|  |--frame1...
-    //             |--frame4----|  |--frame8----|  |--fr...
-
-    // And thus for an arbitrary piece of audio data, we need to 
-    // find the previous frame start point (essentially flooring to
-    // the closest multiple of framestep (default 128) and
-
-    
-
-    if (analysis_range_start > audioconf.frame_length_samples - audioconf.frame_step_samples) 
-    {
-	// if we are not dealing with the first bits of the file, 
-	// take into account the frame overlap (ie. include a bit 
-	// from previous package):
+	// Are we in speech segments?
 	
-	analysis_range_start -= 
-	    Math.floor( audioconf.frame_length_samples / 
-			audioconf.frame_step_samples ) * audioconf.frame_step_samples; 
-    }
+	/*
+	 * OPERATING VOICE ACTIVITY DETECTION
+	 */
 
-    // and floor the end to the closesti multiple of framestep:
-    // Except if we are dealing with the last packet, we should instead extend the
-    // buffer so the last bits of audio signal will be analysed and 
-    // fill the buffer with tiny noise for that; Well, we don't seem to be doing it here now.
-    
-    var analysis_range_end= (userdata[user].currentword.bufferend - (userdata[user].currentword.bufferend % audioconf.frame_step_samples));
-    var recog_range_end= userdata[user].currentword.bufferend;
+	// Too many lines here; Move to another file whenever there's time for such luxuries!
 
-    // Immediately update the range ends so things don't get called twice!
+	var vadp = { level: userdata[user].currentword.vad.level, 
+		     background: userdata[user].currentword.vad.background  };
 
-    userdata[user].currentword.sent_to_analysis=analysis_range_end;
-    userdata[user].currentword.sent_to_recogniser = recog_range_end;
+	for (i=already_sent_to_analysis; i < userdata[user].currentword.bufferend+conf.vad.window; i+= conf.vad.window ) {
+	    vadp = vad.classify_frame( userdata[user].audiobinarydata.slice(i, i+conf.vad.window), vadp);
+	    
+	    if (vadp.is_speech) { 
+		userdata[user].currentword.vad.numsil = 0;  
+		userdata[user].currentword.vad.numsp += 1;  
+	    }
+	    else {
+		userdata[user].currentword.vad.numsil += 1;  
+		userdata[user].currentword.vad.numsp   = 0;  		
+	    }
 
-
-    var analysis_range_length = analysis_range_end - analysis_range_start;
-
-    var analysis_start_frame =  (analysis_range_start/ audioconf.frame_step_samples);
-    var analysis_end_frame = (analysis_range_end/ audioconf.frame_step_samples);
-    var analysis_frame_length = (analysis_range_length / audioconf.frame_step_samples);
-    
-    var result_range_length = analysis_range_length - Math.floor(audioconf.frame_length_samples/
-								 audioconf.frame_step_samples) * audioconf.frame_step_samples;
-    
-    var overlap_frames = Math.ceil((audioconf.frame_length_samples - audioconf.frame_step_samples)/ audioconf.frame_step_samples );
-    
-    userdata[user].currentword.featureend = analysis_end_frame;
-    /*
-    debugout("******** Sending to audio analysis: " + already_sent_to_analysis +"-"+userdata[user].currentword.bufferend +
-	     " --> framed to " + analysis_range_start + 
-	     " - " + analysis_range_end +
-	     " (frames " +
-	     (analysis_range_start/ audioconf.frame_step_samples) + "-" +
-	     (analysis_range_end/ audioconf.frame_step_samples) + ")");
-    
-    debugout("******** Waiting in return: " + 
-	     " --> framed to " + analysis_start_frame * audioconf.dimensions +
-	     " - " + (analysis_end_frame-overlap_frames) * audioconf.dimensions +
-	     " (frames " +
-	     (analysis_start_frame) + "-" +
-	     ((analysis_end_frame-overlap_frames) ) + ")");
-    */
-
-    if (analysis_range_length > 0) {
+	    if ((userdata[user].currentword.vad.speechstart < 0 ) && 
+		(userdata[user].currentword.vad.numsp >= conf.vad.speech_frame_thr)) 
+	    {
+		userdata[user].currentword.vad.speechstart = Math.max(0, i - (conf.vad.speech_frame_thr * conf.vad.window));		
+		debugout(user +": Starting speech at bit "+ userdata[user].currentword.vad.speechstart);
+	    }
+	    else if ((userdata[user].currentword.vad.speechstart > -1 ) && 
+		     ( userdata[user].currentword.vad.speechend < 0 ) && 
+		     (userdata[user].currentword.vad.numsil >= conf.vad.sil_frame_thr)) 
+	    {
+		userdata[user].currentword.vad.speechend = i - (conf.vad.sil_frame_thr * conf.vad.window) ;
+		debugout(user +": Ending speech at bit "+ userdata[user].currentword.vad.speechend);
+	    }
+	}
+	userdata[user].currentword.vad.level = vadp.level;	
+	userdata[user].currentword.vad.background = vadp.background;	
 
 
-	var packetnr = userdata[user].currentword.featureprogress.length;
-	userdata[user].currentword.featureprogress.push(0);
+	// There's overlap in the frames; Windows are by default 
+	// 400 samples with a step of 128
+	// so for this hypothetical audio data:
+	// -------------------------------------------------...
+	// |--frame1----|  |--frame5----|  |--frame9----|   ... 
+	//     |--frame2----|  |--frame6----|  |--frame10   ...
+	//         |--frame3----|  |--frame7----|  |--frame1...
+	//             |--frame4----|  |--frame8----|  |--fr...
 
-	// Send data to the DNN feature extractor:
-	var audio_analyser = require('./audio_handling/audio_analyser');
+	// And thus for an arbitrary piece of audio data, we need to 
+	// find the previous frame start point (essentially flooring to
+	// the closest multiple of framestep (default 128) and
+
 	
-	audio_analyser.compute_features( audioconf,
-					 userdata[user].audiobinarydata.slice(analysis_range_start,analysis_range_end), 
-					 userdata[user].featuredata.slice( analysis_start_frame * audioconf.dimensions, 
-									   (analysis_end_frame-overlap_frames) * audioconf.dimensions ),
-					 user, 
-					 userdata[user].currentword.id,
-					 packetnr,
-					 analysis_range_end);
-    }
-    else 
-    {
-	debugout(user +": Audio analysis of length 0 requested ("+analysis_range_start+"-"+analysis_range_end+")... This is bad manners.");
 
+	if (analysis_range_start > audioconf.frame_length_samples - audioconf.frame_step_samples) 
+	{
+	    // if we are not dealing with the first bits of the file, 
+	    // take into account the frame overlap (ie. include a bit 
+	    // from previous package):
+	    
+	    analysis_range_start -= 
+		Math.floor( audioconf.frame_length_samples / 
+			    audioconf.frame_step_samples ) * audioconf.frame_step_samples; 
+	}
+
+	// and floor the end to the closesti multiple of framestep:
+	// Except if we are dealing with the last packet, we should instead extend the
+	// buffer so the last bits of audio signal will be analysed and 
+	// fill the buffer with tiny noise for that; Well, we don't seem to be doing it here now.
+	
+	var analysis_range_end= (userdata[user].currentword.bufferend - (userdata[user].currentword.bufferend % audioconf.frame_step_samples));
+	var recog_range_end= userdata[user].currentword.bufferend;
+	
+	
+	if ( (userdata[user].currentword.vad.speechstart > -1) && (analysis_range_end > userdata[user].currentword.vad.speechstart )) {
+
+	    // Immediately update the range ends so things don't get called twice!
+
+	    userdata[user].currentword.sent_to_analysis=analysis_range_end;
+	    userdata[user].currentword.sent_to_recogniser = recog_range_end;
+
+
+	    var analysis_range_length = analysis_range_end - analysis_range_start;
+
+	    var analysis_start_frame =  (analysis_range_start/ audioconf.frame_step_samples);
+	    var analysis_end_frame = (analysis_range_end/ audioconf.frame_step_samples);
+	    var analysis_frame_length = (analysis_range_length / audioconf.frame_step_samples);
+	    
+	    var result_range_length = analysis_range_length - Math.floor(audioconf.frame_length_samples/
+									 audioconf.frame_step_samples) * audioconf.frame_step_samples;
+	    
+	    var overlap_frames = Math.ceil((audioconf.frame_length_samples - audioconf.frame_step_samples)/ audioconf.frame_step_samples );
+	    
+	    userdata[user].currentword.featureend = analysis_end_frame;
+	    /*
+	      debugout("******** Sending to audio analysis: " + already_sent_to_analysis +"-"+userdata[user].currentword.bufferend +
+	      " --> framed to " + analysis_range_start + 
+	      " - " + analysis_range_end +
+	      " (frames " +
+	      (analysis_range_start/ audioconf.frame_step_samples) + "-" +
+	      (analysis_range_end/ audioconf.frame_step_samples) + ")");
+	      
+	      debugout("******** Waiting in return: " + 
+	      " --> framed to " + analysis_start_frame * audioconf.dimensions +
+	      " - " + (analysis_end_frame-overlap_frames) * audioconf.dimensions +
+	      " (frames " +
+	      (analysis_start_frame) + "-" +
+	      ((analysis_end_frame-overlap_frames) ) + ")");
+	    */
+
+	    if (analysis_range_length > 0) {
+
+
+		var packetnr = userdata[user].currentword.featureprogress.length;
+		userdata[user].currentword.featureprogress.push(0);
+
+		// Send data to the DNN feature extractor:
+		var audio_analyser = require('./audio_handling/audio_analyser');
+		
+		audio_analyser.compute_features( audioconf,
+						 userdata[user].audiobinarydata.slice(analysis_range_start,analysis_range_end), 
+						 userdata[user].featuredata.slice( analysis_start_frame * audioconf.dimensions, 
+										   (analysis_end_frame-overlap_frames) * audioconf.dimensions ),
+						 user, 
+						 userdata[user].currentword.id,
+						 packetnr,
+						 analysis_range_end);
+	    }
+	    else 
+	    {
+		debugout(user +": Audio analysis of length 0 requested ("+analysis_range_start+"-"+analysis_range_end+")... This is bad manners.");
+
+	    }
+	    if (recog_range_end-recog_range_start > 0) {
+		// Send data to the recogniser processes:
+		send_to_recogniser(user, already_sent_to_recogniser, recog_range_end  );
+	    }
+	    else
+	    {
+		debugout(user + ": Sending to recogniser data of length 0 requested ("+recog_range_start+"-"+recog_range_end+")... This is bad manners.");
+	    }    
+	}
+	else {
+	    debugout(user +": VAD says audio has not started yet!");
+	}
     }
-    if (recog_range_end-recog_range_start > 0) {
-	// Send data to the recogniser processes:
-	send_to_recogniser(user, already_sent_to_recogniser, recog_range_end  );
-    }
-    else
-    {
-	debugout(user + ": Sending to recogniser data of length 0 requested ("+recog_range_start+"-"+recog_range_end+")... This is bad manners.");
-    }    
 }
 
 

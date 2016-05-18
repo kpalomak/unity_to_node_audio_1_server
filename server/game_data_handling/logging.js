@@ -9,7 +9,7 @@ var fs = require('fs');
 
 
 var debugout = function(user, msg) {
-    console.log("\x1b[35m%s\x1b[0m", get_date_time().datetime + ' '+user + ': '+msg);
+    console.log("\x1b[35mloggin %s\x1b[0m", get_date_time().datetime + ' '+user + ': '+msg);
 }
 
 

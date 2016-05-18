@@ -74,7 +74,7 @@ function compute_features(audioconf, inputbuffer,outputbuffer, user, word_id, pa
 function print_debug(user,text) {
     if (DEBUG_TEXTS) 
     {
-	console.log( "\x1b[37m%s\x1b[0m", logging.get_date_time().datetime + ' '+user + ': '+text);
+	console.log( "\x1b[37maudio  %s\x1b[0m", logging.get_date_time().datetime + ' '+user + ': '+text);
     }
 }
 

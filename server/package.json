@@ -8,6 +8,7 @@
   "dependencies": {
     "bson": "^0.4.22",
     "longjohn": "^0.2.11",
+    "mathjs": "^3.2.1",
     "mongodb": "~2.0.33",
     "monk": "~1.0.1"
   }

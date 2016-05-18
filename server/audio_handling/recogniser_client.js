@@ -341,7 +341,7 @@ function recogniser_client (conf, user, segmentword) {//(conf, user, segmentword
 		}
 	    }
 	    else {
-	        debugout(this.user,"???????????? word "+this.word_to_be_segmented+" Data sending in progress, let's wait "+ this.recog_conf.pause_between_packets+" ms and try again");
+	        //debugout(this.user,"???????????? word "+this.word_to_be_segmented+" Data sending in progress, let's wait "+ this.recog_conf.pause_between_packets+" ms and try again");
 		var that = this;	
 		setTimeout (function() {
 		    that.process_audio_queue();
@@ -365,12 +365,12 @@ function recogniser_client (conf, user, segmentword) {//(conf, user, segmentword
 	//debugout(Math.min( (data.length-i), recog_conf.packet_size));  
 	if (data.length==0)
 	{
-	    debugout(this.user,current_port + " ###################### FINISHING AUDIO!!!! ("+this.client_type+") My word is "+this.word_to_be_segmented );
+	    debugout(this.user,current_port + " ##### FINISHING AUDIO!!!! ("+this.client_type+") My word is "+this.word_to_be_segmented );
 	}
 
 	this_packet_size = Math.min( (data.length-i), this.recog_conf.packet_size);    
 
-	debugout(this.user,current_port + "("+this.client_type+") Sending "+data.length+" bytes of data: Word is set to "+this.word_to_be_segmented);
+	//debugout(this.user,current_port + "("+this.client_type+") Sending "+data.length+" bytes of data: Word is set to "+this.word_to_be_segmented);
 
 	var that = this;
 	this.client.write(
@@ -434,7 +434,7 @@ function recogniser_client (conf, user, segmentword) {//(conf, user, segmentword
 }
 
 debugout = function(user, msg) {
-    console.log("\x1b[31m%s\x1b[0m", logging.get_date_time().datetime + ' '+user + ': '+msg);
+    console.log("\x1b[31mrecogn %s\x1b[0m", logging.get_date_time().datetime + ' '+user + ': '+msg);
 }
 
 

@@ -122,7 +122,7 @@ var fur_hat_scorer = function(user, word, wordid, segmentation, likelihood) {
 
 /* Text output through this function will be green */
 var debugout = function(user,msg) {
-    console.log("\x1b[32m%s\x1b[0m", logging.get_date_time().datetime + ' '+user+': '+ msg);
+    console.log("\x1b[32mscorer %s\x1b[0m", logging.get_date_time().datetime + ' '+user+': '+ msg);
 }
 
 
