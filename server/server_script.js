@@ -708,8 +708,16 @@ function asyncAudioAnalysis(user) {
 	// buffer so the last bits of audio signal will be analysed and 
 	// fill the buffer with tiny noise for that; Well, we don't seem to be doing it here now.
 	
-	var analysis_range_end= (userdata[user].currentword.bufferend - (userdata[user].currentword.bufferend % audioconf.frame_step_samples));
-	var recog_range_end= userdata[user].currentword.bufferend;
+	if (userdata[user].currentword.vad.speechend > -1) {
+	    var analysis_range_end = Math.max(userdata[user].currentword.vad.speechend, userdata[user].currentword.bufferend);
+	    var recog_range_end= Math.max(userdata[user].currentword.vad.speechend, userdata[user].currentword.bufferend);
+	}
+	else {
+	    var analysis_range_end= (userdata[user].currentword.bufferend);
+	    var recog_range_end= userdata[user].currentword.bufferend;
+	}
+	
+	analysis_range_end -= (userdata[user].currentword.bufferend % audioconf.frame_step_samples);	
 
 	// Immediately update the range ends so things don't get called twice!
 	

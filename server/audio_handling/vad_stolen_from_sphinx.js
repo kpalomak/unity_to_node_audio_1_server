@@ -133,8 +133,8 @@ var classify_frame = function(audiobuffer, parameters) {
 	     is_speech: is_speech,
 	     level: level,
 	     background: background,
-	     // current : current,
-	     // leveldiff : (level - background),
+	     current : current,
+	     leveldiff : (level - background),
 	     // std: std
 	   }
 }

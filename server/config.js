@@ -39,8 +39,8 @@ module.exports = {
 	'good_utterance_length_s' : 3
     },
     vad : {
-	'window' : 160*4,
-	'speech_frame_thr' : 5,
-	'sil_frame_thr' : 10
+	'window' : 160*4, // VAD window size (10ms of 16kHz 4bit float data)
+	'speech_frame_thr' : 5, // How many consecutive speech frames are needed for a speech segment decision
+	'sil_frame_thr' : 10 // How many consecutive silence frames are needed for a silence segment decision
     }
 }

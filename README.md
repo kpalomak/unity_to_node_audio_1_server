@@ -59,10 +59,12 @@ computer that runs the server.
   * `audio_analyser_all.js` _runs the feature extraction script and writes the features to a given buffer_
   * `audio_analyser_all.sh` _uses SPTK to create 30dim features from audio data (not required yet!)_
   * `recogniser_client.js` _runs the recogniser backend instance(s)_
-  * `fur_hat_scorer.js` _This is a skeleton for a simple scoring module)_
+  * `vad_stolen_from_sphinx.js`_a simple VAD from CMU Sphinx project (have to update license to give credit to this one!)_
+  * `test_vad_with_wav.js` _an terminal utility for getting the speech frames for a wav file. Included just for testing__
 * `game_data_handling/`
   * `logging.js` _writes log files of player activity_
   * `game_data_handler.js` _saves and loads player progress_
+  * `fur_hat_scorer.js` _This is a skeleton for a simple scoring module)_
 * `scoring_handling/`
   * `segmentation_handler.js` _takes the segmentation and tries to do some classification with it (in the future)_
 * `log/` _game logs will be written here_
