@@ -181,7 +181,7 @@ process.on('user_event', function(user, wordid, eventname, eventdata) {
 		    userdata[user].currentword.segmentation_complete = true;
 
 		    // Segmentation failed, let's send a zero score to the client:
-		    send_score_and_clear(user, "0", null);
+		    send_score_and_clear(user, "-2", null);
 		}
 		    
 		//check_feature_progress(user);
@@ -192,13 +192,14 @@ process.on('user_event', function(user, wordid, eventname, eventdata) {
 		userdata[user].currentword.segmentation_complete = true;
 	
 		debugout(colorcodes.event, user +": SEGMENTATION FAILED!");
-		send_score_and_clear(user, "0", null);
+		send_score_and_clear(user, "-2", null);
 		
 		//check_feature_progress(user);
 	    }	
 	    else if (eventname == 'classification_done') {
 		userdata[user].currentword.phoneme_classes = eventdata.classification
-				
+
+		debugout(colorcodes.event, user +": CLASSIFICATION DONE AND THERE IS NO WAY FORWARD!");
 		// While debugging with Aleks we don't want to rely on the ASR component
 		// calc_score_and_send_reply(user);				
 		
@@ -230,7 +231,7 @@ function initialisation_reply(user) {
 
 // Reply to word selection call:
 function word_select_reply(user) {
-    userdata[user].readyreply.end( userdata[user].currentword.reference )
+    userdata[user].readyreply.end( userdata[user].currentword.reference );
 }
 
 
@@ -246,7 +247,8 @@ function audio_packet_reply(user,res, packetnr, usevad) {
        just use some arbitrary limits set in conf file (rather than hard coding! 
        Surprisingly good style, isn't it?)
     */
-    if (packetnr == conf.audioconf.packets_per_second * conf.temp_devel_stuff.good_utterance_length_s ) {
+    if ( (userdata[user].currentword.vad.speechend > 0 ) ||
+ 	 (packetnr == conf.audioconf.packets_per_second * conf.temp_devel_stuff.good_utterance_length_s ) ) {
 	res.end( "-1" );
     }
     else if (packetnr > -1) {
@@ -257,14 +259,8 @@ function audio_packet_reply(user,res, packetnr, usevad) {
 // Reply to the last packer call:
 function send_score_and_clear(user, total_score, phoneme_scores) {
 
-    debugout(user +": HEAR HEAR; Let's return the results finally!");
-
-    // Send a random number back, as we don't know of any better.
-    //wordscore =  Math.round(5.0*Math.random());
-    
-    
     userdata[user].lastPacketRes.end( total_score.toString() );
-
+    
     logging.log_scoring({user: user,
 			 packetcount: userdata[user].currentword.lastpacketnr,
 			 word_id : userdata[user].currentword.id,
@@ -497,6 +493,7 @@ function clearUpload(user) {
     
     word.segmentation_complete = false;
     word.state_statistics = null;
+    word.finishing_segmenter = false;
 
     var vad = {};
     vad.level = 0;
@@ -594,25 +591,39 @@ function processDataChunks(user, wordid, res, packetnr) {
 
 function check_last_packet(user) {
 
-    // Check if we have all the packets in already:    
-    var chunkcount = -1;    
-    userdata[user].currentword.analysedpackets.forEach( function(element, index, array) {
-	chunkcount++;
-    });
-    
-    if (chunkcount == userdata[user].currentword.lastpacketnr ) {		
-	// Send a null packet to recogniser as sign of finishing:
-	debugout(user + ": check_last_packet all good: Calling Finish_audio");
-	userdata[user].segmenter.finish_audio();
+    if (!userdata[user].currentword.finishing_segmenter) {
 
-	// For debug let's write the received data in the debug dir:
-	if (debug) { fs.writeFile("upload_data/debug/"+user+"_floatdata", 
-				  userdata[user].audiobinarydata.slice(userdata[user].currentword.vad.speechstart,  
-									 userdata[user].currentword.vad.speechend) ); }
+	// Check if we have all the packets in already:    
+	var chunkcount = -1;    
+	userdata[user].currentword.analysedpackets.forEach( function(element, index, array) {
+	    chunkcount++;
+	});
+	
+	// Also, if the VAD has a speech end value, finish audio processing:
+	if ((chunkcount == userdata[user].currentword.lastpacketnr)|| (userdata[user].currentword.vad.speechend > -1)) {		
+	    // Send a null packet to recogniser as sign of finishing:
 
-    }
-    else {
-	debugout(user + ": check_last_packet something missing: chunkcount "+ chunkcount +" !=  userdata[user].currentword.lastpacketnr "+  userdata[user].currentword.lastpacketnr);
+	    if (userdata[user].currentword.vad.speechend > -1)
+		debugout(user + ": check_last_packet all good - VAD says we're done : Calling Finish_audio");
+	    if (chunkcount == userdata[user].currentword.lastpacketnr)
+		debugout(user + ": check_last_packet all good - All chunks in : Calling Finish_audio");
+
+	    userdata[user].currentword.finishing_segmenter = true;
+	    userdata[user].segmenter.finish_audio();
+
+	    // For debug let's write the received data in the debug dir:
+	    if (debug) { fs.writeFile("upload_data/debug/"+user+"_floatdata", 
+				      userdata[user].audiobinarydata.slice(userdata[user].currentword.vad.speechstart,  
+									   userdata[user].currentword.vad.speechend) ); 
+			 fs.writeFile("upload_data/debug/"+user+"_complete_floatbuffer", 
+				      userdata[user].audiobinarydata); 			 
+		   }
+	    
+	    
+	}
+	else {
+	    debugout(user + ": check_last_packet something missing: chunkcount "+ chunkcount +" !=  userdata[user].currentword.lastpacketnr "+  userdata[user].currentword.lastpacketnr);
+	}
     }
 }
 
@@ -788,6 +799,13 @@ function asyncAudioAnalysis(user) {
 	    {
 		debugout(user + ": Sending to recogniser data of length 0 requested ("+recog_range_start+"-"+recog_range_end+")... This is bad manners.");
 	    }    
+
+	    /* If the VAD just informed us that the end is near, finish the recognition: */
+	    if (userdata[user].currentword.vad.speechend > -1) {
+		debugout(user + ": Finishing recognition as VAD says signal ends at "+userdata[user].currentword.vad.speechend);
+		process.emit('user_event', user, userdata[user].currentword.id,'last_packet_check', null);
+	    }
+
 	}
 	else {
 	    debugout(user +": VAD says audio has not started yet!");

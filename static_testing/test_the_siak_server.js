@@ -12,6 +12,10 @@ var packetsize = 4* 6 * Math.floor(fs/packets_per_second/6);
 
 var packetinterval = Math.floor(1000.0/packets_per_second);
 
+
+var time_to_send_the_final_packet = 0;
+var finalpacketsent = 0;
+
 var reader = new FileReader();	
 
 var server_ok = false;
@@ -216,9 +220,10 @@ function send_file_in_parts(f, n, logging) {
     logging.innerHTML += "<br>" + timestamp() + "  Sending packet "+n+", bytes "+startbyte+"-"+endbyte;
 
     var lastpacket = false;
-    if (endbyte == f.size) {
+    if (endbyte == f.size || time_to_send_the_final_packet ) {
 	lastpacket = true;
 	logging.innerHTML += "<br>" + timestamp() + " It's the last packet!";
+	finalpacketsent = true;
     }
 
     
@@ -285,15 +290,20 @@ function send_file_in_parts(f, n, logging) {
 		logging.innerHTML += "<br>" + timestamp() + " Server says ok!";	
 		if (lastpacket) {
 		    logging.innerHTML += "<br> server returns <b>" + xhr.responseText +"</b>";
+		    time_to_send_the_final_packet = false;
+		    finalpacketsent=false;
 		}
 		else {
+		    if (xhr.responseText === "-1") {
+			time_to_send_the_final_packet = true;
+		    }
 		    logging.innerHTML += "<br> server returns <b>" + xhr.responseText +"</b>";
-		}  
 
-		if ( (n+1) * packetsize < f.size )  {
-		    var myVar = setTimeout( function() {
-			send_file_in_parts(f, ++n, logging)
-		    }, packetinterval );
+		    if ((!finalpacketsent) && ( (n+1) * packetsize < f.size) )  {
+			var myVar = setTimeout( function() {
+			    send_file_in_parts(f, ++n, logging)
+			}, packetinterval );
+		    }
 		}
 		// File(s) uploaded.
 	    } else if (xhr.status === 502) {

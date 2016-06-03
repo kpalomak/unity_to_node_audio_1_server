@@ -4,6 +4,7 @@ var fs = require('fs');
 var logging = require('../game_data_handling/logging.js');
 
 var endtag='\x0d\x0a';
+var bright = "\x1b[1m";
 
 var net = require('net');
 
@@ -233,7 +234,7 @@ function recogniser_client (conf, user, segmentword) {//(conf, user, segmentword
 
     recogniser_client.prototype.define_word = function (word) {
 
-	debugout(this.user," =================> Trying to define current word as "+word);
+	debugout(this.user," =================> Trying to define current word as "+bright + word);
 
 	var current_port = this.client.address().port;
 	
