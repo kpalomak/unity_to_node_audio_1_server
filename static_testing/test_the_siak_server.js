@@ -217,14 +217,20 @@ function send_file_in_parts(f, n, logging) {
 
     endbyte = Math.min( ((n+1) * packetsize)-1, f.size);
    
-    logging.innerHTML += "<br>" + timestamp() + "  Sending packet "+n+", bytes "+startbyte+"-"+endbyte;
-
     var lastpacket = false;
-    if (endbyte == f.size || time_to_send_the_final_packet ) {
+    var last = ""
+    if ((endbyte == f.size) || (time_to_send_the_final_packet) ) {
 	lastpacket = true;
 	logging.innerHTML += "<br>" + timestamp() + " It's the last packet!";
 	finalpacketsent = true;
     }
+
+    if (lastpacket) {
+	last = " (<b>last!</b>)";
+    }
+	
+    
+    logging.innerHTML += "<br>" + timestamp() + "  Sending packet "+n+last+", bytes "+startbyte+"-"+endbyte;
 
     
     var blob = f.slice(startbyte, endbyte);
@@ -289,15 +295,17 @@ function send_file_in_parts(f, n, logging) {
 	    if (xhr.status === 200) {
 		logging.innerHTML += "<br>" + timestamp() + " Server says ok!";	
 		if (lastpacket) {
-		    logging.innerHTML += "<br> server returns <b>" + xhr.responseText +"</b>";
+		    logging.innerHTML += "<br><b>Last packet sent:</b> Server returns <b>" + xhr.responseText +"</b>";
 		    time_to_send_the_final_packet = false;
 		    finalpacketsent=false;
 		}
 		else {
-		    if (xhr.responseText === "-1") {
+		    if (xhr.responseText == -1) {
+			logging.innerHTML += "<br>" + timestamp() + "Server says to stop recording!";
 			time_to_send_the_final_packet = true;
 		    }
-		    logging.innerHTML += "<br> server returns <b>" + xhr.responseText +"</b>";
+		    
+		    logging.innerHTML += "<br> Foo! server returns <b>" + xhr.responseText +"</b>";
 
 		    if ((!finalpacketsent) && ( (n+1) * packetsize < f.size) )  {
 			var myVar = setTimeout( function() {

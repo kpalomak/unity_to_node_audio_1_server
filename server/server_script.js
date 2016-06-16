@@ -129,12 +129,12 @@ process.on('user_event', function(user, wordid, eventname, eventdata) {
 
     debugout(colorcodes.event, user + ': EVENT: wordid '+wordid +" eventname "+eventname); 
 
-    if (eventname == 'segmenter_loaded') {
-	userdata[user].segmenter_loaded = true;
-	userdata[user].currentword.reference = eventdata.word;
-	initialisation_reply(user);
+    /*if (eventname == 'segmenter_loaded') {
+    	userdata[user].segmenter_loaded = true;
+    	userdata[user].currentword.reference = eventdata.word;
+    	initialisation_reply(user);
     }
-    else if (eventname == 'segmenter_ready') 
+    else*/ if (eventname == 'segmenter_ready') 
     {
 	userdata[user].segmenter_ready = true;
 	userdata[user].currentword.reference = eventdata.word;	    
@@ -300,6 +300,9 @@ var operate_recognition = function (req,res) {
     if (packetnr == -2) {
 	init_userdata(user);
 	logging.log_event({user: user, event: "initialise"});
+
+	//debugout("Time for init reply");
+	//initialisation_reply(user);
     } 
 
     /* Packet nr -1 is used to set the word: */
@@ -347,8 +350,11 @@ var operate_recognition = function (req,res) {
 	/* As the HTTP call ends (no more data chunks) it would be time to reply.
 	   But as some of the things we want to do take time, we'll store the reply objects 
 	   in out great central userdata object for later processing: */
+	debugout("Req end! "+packetnr);
 	if (packetnr == -2) {
+	    debugout("Time for init reply");
 	    userdata[user].initreply = res;
+	    initialisation_reply(user);
 	}
 	else if (packetnr == -1) {		
 	    userdata[user].readyreply = res;
@@ -452,8 +458,9 @@ function init_userdata(user) {
 
 	userdata[user].segmenter_ready = false;
 
+	// Let's remove this for a while: Init a new recogniser for each word!
 	// init segmenter / recogniser:
-	userdata[user].segmenter = new recogniser_client(recogconf, user, "init_segmenter");		
+	//userdata[user].segmenter = new recogniser_client(recogconf, user, "init_segmenter");		
 	
 	// init segmentation handler / classifier:
 	userdata[user].segmentation_handler = new segmentation_handler(user);
@@ -524,10 +531,15 @@ function set_word_and_init_recogniser(user, word, word_id) {
 
 
     debugout(user + ": set_word_and_init_recogniser("+word+")!");	
-    userdata[user].segmenter.init_segmenter(word, word_id);
+    // init segmenter / recogniser:
+
+    userdata[user].segmenter = new recogniser_client(recogconf, user, word, word_id, "init_segmenter");	
+    
+    //userdata[user].segmenter.init_segmenter(word, word_id);
+
     userdata[user].segmentation_handler.init_classification(word, word_id);
 
-    
+
 }
 
 

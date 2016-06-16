@@ -9,7 +9,7 @@ var bright = "\x1b[1m";
 var net = require('net');
 
 var HOST = '127.0.0.1';
-var PORT = 7554;
+var PORT = 17554;
 
 var events = require('events');
 
@@ -17,7 +17,7 @@ var events = require('events');
 //var recogniser_client = (function () {
 
 // constructor:
-function recogniser_client (conf, user, segmentword) {//(conf, user, segmentword) {
+function recogniser_client (conf, user, segmentword, segmentword_id) {//(conf, user, segmentword) {
     
 
     this.recog_result = null;
@@ -27,10 +27,13 @@ function recogniser_client (conf, user, segmentword) {//(conf, user, segmentword
     this.audio_queue = [];
     
     this.sending_data = false;	
-    this.word_to_be_segmented = null;	
-    this.word_id = 13;
+    this.word_to_be_segmented = segmentword;	
+    this.word_id = segmentword_id;
+    
 
     this.eventEmitter = new events.EventEmitter();	
+
+    
     
     this.user = user;
     this.recog_conf = conf;
@@ -39,7 +42,7 @@ function recogniser_client (conf, user, segmentword) {//(conf, user, segmentword
     this.client = new net.Socket();
 
     debugout(this.user, "Initialising: "+conf+", "+user+", "+segmentword);
-    this.client_type = 'initialising';
+    this.client_type = 'segmenter';
 
     var that = this;
 
@@ -52,7 +55,7 @@ function recogniser_client (conf, user, segmentword) {//(conf, user, segmentword
 	// Write a message to the socket as soon as the client is connected:
 	that.connected = true;
 	that.state='init';
-	//debugout(this);
+	debugout(this);
 	that.define_speaker(that.user, that.word_to_be_segmented);
 	
     });
@@ -62,7 +65,7 @@ function recogniser_client (conf, user, segmentword) {//(conf, user, segmentword
     
     
     this.client.on('data', function(data) {
-	debugout(that.user, "Got data from port "+ that.client.address().port +" ("+that.client_type+"):")
+	debugout(that.user, "Got data from port "+ that.client.address().port +" ("+that.client_type+","+that.state+"):")
 	debugout(that.user, (data.toString().split('\n')[0]));
 	//debugout("Got data! My state is "+ that.state +" and my word is "+ that.word_to_be_segmented+": "+data);
 	
@@ -71,16 +74,19 @@ function recogniser_client (conf, user, segmentword) {//(conf, user, segmentword
 	    //debugout('recogniser says OK (my state is '+state+')');
 	    
 	    if (that.state == 'init') {
-		debugout(that.user, ' --> grammar_def');		
+		debugout(that.user, ' --> grammar_def: '+that.word_to_be_segmented+".conf");		
 		that.state = 'grammar-def';
-		that.define_grammar(that.recog_conf.grammar);
+		//that.define_grammar(that.recog_conf.grammar);
+		that.define_grammar(that.word_to_be_segmented +".conf");
 	    }
 
 	    else if (that.state == 'grammar-def') {		
 		if (that.word_to_be_segmented != null) {
-		    process.emit('user_event', that.user, that.word_id, 'segmenter_loaded', {word:that.word_to_be_segmented});
+		    //process.emit('user_event', that.user, that.word_id, 'segmenter_loaded', {word:that.word_to_be_segmented});
 		    debugout(that.user, ' --> Next we want to define_word');
-		    that.state = 'segmenter_loaded';
+		    //that.state = 'segmenter_loaded';
+		    that.state = "word-def";
+		    that.define_word(that.word_to_be_segmented);
 		}
 		else {
 		    debugout(that.user, ' --> Next we want to start_recog');
@@ -172,6 +178,9 @@ function recogniser_client (conf, user, segmentword) {//(conf, user, segmentword
 	this.word_id = word_id;
 	this.state = 'word-def';
 	this.client_type = 'segmenter';
+	
+
+	debugout(that.user, ' --> init segmenter? Next define_word');
 
 	this.define_word(word);	
     } 
