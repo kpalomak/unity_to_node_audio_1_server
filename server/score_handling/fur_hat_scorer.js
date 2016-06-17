@@ -100,7 +100,9 @@ var fur_hat_scorer = function(user, word, wordid, segmentation, likelihood) {
        be passed to a logging module. */
 
     phoneme_scores = [];       
-    total_score =  Math.ceil(5.0*Math.random());
+    //total_score =  Math.ceil(5.0*Math.random());
+
+    total_score = 4;
 
     /* When ready, return the score by emitting an event.
        The event call should include an object with score field

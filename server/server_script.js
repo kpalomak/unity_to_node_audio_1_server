@@ -182,7 +182,7 @@ process.on('user_event', function(user, wordid, eventname, eventdata) {
 		    userdata[user].currentword.segmentation_complete = true;
 
 		    // Segmentation failed, let's send a zero score to the client:
-		    send_score_and_clear(user, "-2", null);
+		    send_score_and_clear(user, "1", null);
 		}
 		    
 		//check_feature_progress(user);
@@ -295,12 +295,16 @@ var operate_recognition = function (req,res) {
 
     debugout( '\x1b[33m\x1b[1mserver %s\x1b[0m', user + ": Received packet for ASR! user: "+user + " packetnr: "+packetnr +" lastpacket? "+finalpacket);
 
+    // If recovering from a server crash or otherwise lost:
+    if (user not in userdata) {	
+	init_userdata(user);
+    }
+
 
     // TODO: Implement user authentication and logging!!!
 
     /* Packet nr -2 is used to initialise the recogniser */
     if (packetnr == -2) {
-	init_userdata(user);
 	logging.log_event({user: user, event: "initialise"});
 
 	//debugout("Time for init reply");
