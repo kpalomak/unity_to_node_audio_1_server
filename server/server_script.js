@@ -166,13 +166,14 @@ process.on('user_event', function(user, wordid, eventname, eventdata) {
 		//check_feature_progress(user);
 	    }
 	    else if (eventname == 'segmented' ) {
+		segmentation = eventdata.segmentation;
 		if (segmentation.length > 0) {
 		    
-		    userdata[user].currentword.segmentation = userdata[user].segmentation_handler.segmentation_to_state_list(segmentation);
+		    userdata[user].currentword.segmentation = userdata[user].segmentation_handler.shell_segmentation_to_state_list(segmentation);
 		    userdata[user].currentword.segmentation_complete = true;
 
-		    var likelihood = -100.0*Math.random();
-		    scorer.fur_hat_scorer(user, userdata[user].currentword.reference, wordid, userdata[user].currentword.segmentation, likelihood);
+		    //var likelihood = -100.0*Math.random();
+		    scorer.fur_hat_scorer(user, userdata[user].currentword.reference, wordid, userdata[user].currentword.segmentation);
 		}
 		else 
 		{
@@ -231,6 +232,7 @@ function initialisation_reply(user) {
 
 // Reply to word selection call:
 function word_select_reply(user) {
+    debugout("Replying: "+ userdata[user].currentword.reference);
     userdata[user].readyreply.end( userdata[user].currentword.reference );
 }
 
@@ -309,7 +311,6 @@ var operate_recognition = function (req,res) {
     else if (packetnr == -1) {
 
 	userdata[user].currentword.reference = req.headers['x-siak-current-word'];	
-	set_word_and_init_recogniser(user, userdata[user].currentword.reference,userdata[user].currentword.id );	
 	logging.log_event({user: user, event: "set_word", word: userdata[user].currentword.reference});
 
     }	
@@ -358,6 +359,8 @@ var operate_recognition = function (req,res) {
 	}
 	else if (packetnr == -1) {		
 	    userdata[user].readyreply = res;
+	    set_word_and_init_recogniser(user, userdata[user].currentword.reference,userdata[user].currentword.id );	
+
 	}	    
 	else {
 	    if (array_contains(userdata[user].currentword.analysedpackets, packetnr))
@@ -463,6 +466,7 @@ function init_userdata(user) {
 	//userdata[user].segmenter = new recogniser_client(recogconf, user, "init_segmenter");		
 	
 	// init segmentation handler / classifier:
+
 	userdata[user].segmentation_handler = new segmentation_handler(user);
 
     }
@@ -533,12 +537,15 @@ function set_word_and_init_recogniser(user, word, word_id) {
     debugout(user + ": set_word_and_init_recogniser("+word+")!");	
     // init segmenter / recogniser:
 
-    userdata[user].segmenter = new recogniser_client(recogconf, user, word, word_id, "init_segmenter");	
+    //userdata[user].segmenter = new recogniser_client(recogconf, user, word, word_id, "init_segmenter");	
     
-    //userdata[user].segmenter.init_segmenter(word, word_id);
+    // //userdata[user].segmenter.init_segmenter(word, word_id);
 
-    userdata[user].segmentation_handler.init_classification(word, word_id);
+    //userdata[user].segmentation_handler.init_classification(word, word_id);
 
+    // Kludging to continue; it really isn't necessary to do use events here but
+    // I want to experiment quickly
+    process.emit('user_event', user, word_id, 'segmenter_ready',{word:word});
 
 }
 
@@ -590,6 +597,7 @@ function processDataChunks(user, wordid, res, packetnr) {
 	    }
 	    // Let's see if we have received all packets:
 	    // Send an event to count packets and proceed
+
 	    process.emit('user_event', user, wordid,'last_packet_check', null);
 	}
     }
@@ -621,7 +629,18 @@ function check_last_packet(user) {
 		debugout(user + ": check_last_packet all good - All chunks in : Calling Finish_audio");
 
 	    userdata[user].currentword.finishing_segmenter = true;
-	    userdata[user].segmenter.finish_audio();
+
+
+	    //userdata[user].segmenter.finish_audio();
+	    // Let's send the speech segmnents to the aligner:
+
+	    var sh_aligner = require('./audio_handling/shell_script_aligner');
+	    sh_aligner.align_with_shell_script(conf, 
+					       userdata[user].audiobinarydata.slice(userdata[user].currentword.vad.speechstart,  
+										    userdata[user].currentword.vad.speechend),
+					       userdata[user].currentword.reference, 
+					       user, 
+					       userdata[user].currentword.id); 
 
 	    // For debug let's write the received data in the debug dir:
 	    if (debug) { fs.writeFile("upload_data/debug/"+user+"_floatdata", 
@@ -803,6 +822,7 @@ function asyncAudioAnalysis(user) {
 		debugout(user +": Audio analysis of length 0 requested ("+analysis_range_start+"-"+analysis_range_end+")... This is bad manners.");
 
 	    }
+	    /*
 	    if (recog_range_end-recog_range_start > 0) {
 		// Send data to the recogniser processes:
 		send_to_recogniser(user, already_sent_to_recogniser, recog_range_end  );
@@ -811,7 +831,7 @@ function asyncAudioAnalysis(user) {
 	    {
 		debugout(user + ": Sending to recogniser data of length 0 requested ("+recog_range_start+"-"+recog_range_end+")... This is bad manners.");
 	    }    
-
+	    */
 	    /* If the VAD just informed us that the end is near, finish the recognition: */
 	    if (userdata[user].currentword.vad.speechend > -1) {
 		debugout(user + ": Finishing recognition as VAD says signal ends at "+userdata[user].currentword.vad.speechend);
