@@ -295,11 +295,12 @@ var operate_recognition = function (req,res) {
 
     debugout( '\x1b[33m\x1b[1mserver %s\x1b[0m', user + ": Received packet for ASR! user: "+user + " packetnr: "+packetnr +" lastpacket? "+finalpacket);
 
+    debugout("Should I init userdata?");
     // If recovering from a server crash or otherwise lost:
-    if (user not in userdata) {	
+    if (!userdata.hasOwnProperty(user)) {	
+	debugout("Init userdata!");
 	init_userdata(user);
     }
-
 
     // TODO: Implement user authentication and logging!!!
 

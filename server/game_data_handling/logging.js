@@ -34,6 +34,14 @@ var log_scoring = function( worthy_stuff ) {
     insert_to_db( worthy_stuff, table);
 
 }
+ 
+var log_error = function( worthy_stuff ) {
+
+    var table = 'errors';
+    insert_to_db( worthy_stuff, table);
+
+}
+
 
 
 

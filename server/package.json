@@ -7,6 +7,7 @@
   },
   "dependencies": {
     "bson": "^0.4.22",
+    "fs-extra": "^0.30.0",
     "longjohn": "^0.2.11",
     "mathjs": "^3.2.1",
     "mongodb": "~2.0.33",

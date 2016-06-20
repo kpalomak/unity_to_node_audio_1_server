@@ -22,11 +22,9 @@ var sptk_path='/usr/local/bin/';
 
 var debug = true;
 
-var fs = require('fs');
+//var fs = require('fs');
+var fs = require('fs-extra');
 
-if (debug) {
-    var fs = require('fs');
-}
 
 var outputbuffer = Buffer.concat([]);
 
@@ -93,23 +91,31 @@ function align_with_shell_script(conf, inputbuffer, word_reference, user, word_i
     writer.write(pcmbuffer);    
     writer.end();
 
+    // Make a copy of the wav file (async to save time):
+    // #cp $3 "/l/data/siak-server-devel/server/upload_data/from_game/${1}_`date +"%Y-%m-%d-%H-%M-%S"`.wav"    
+    var target_wavfile = 'upload_data/from_game/'+user +'_'+ word_id +'_'+ word_reference  +'_'+ logging.get_date_time().datetime ;
+    print_debug("target_wavfile :" + target_wavfile );
+    print_debug("wavinput :" + wavinput );
 
+    fs.copy(wavinput, target_wavfile, function(err) {if (err) { logging.log_error( {user: user, 
+										    event: "save_wav", 
+										    word: word_reference,
+										    target: target_wavfile,
+										    error: err.toString() } ) } });
     // 2. write the labels in to mem file system:
     
-
     // (This will be done by the script itself)
-
 
     // 3. write the recipe file into mem file system:
 
-
     // (This will be done by the script itself)
 
-    var lexicon = conf.recogconf.lexicon;
 
+    var lexicon = conf.recogconf.lexicon;
+    var model = conf.recogconf.model
     
     var featext_command = "./audio_handling/shell_script_aligner.sh";
-    var featext_args = [ word_reference, lexicon, wavinput, labelinput, recipeinput, segmentoutput ];
+    var featext_args = [ word_reference, lexicon, wavinput, labelinput, model, segmentoutput ];
 
     var comm = featext_command;
     featext_args.forEach(function(arg){ comm += " "+arg });

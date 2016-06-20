@@ -34,7 +34,8 @@ module.exports = {
 	'grammar' : 'words.conf',
 	'packet_size' : 2048,
 	'pause_between_packets' : 20,
-	'lexicon' : '/home/backend/models-clean-am/train.lex'
+	'lexicon' : '/home/backend/models-clean-am/train.lex',
+	'model' : '/home/backend/models-clean-am/siak_clean_a'
     },
     temp_devel_stuff : {
 	'good_utterance_length_s' : 3
