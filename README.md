@@ -1,4 +1,5 @@
 # Unity to Node audio transfer 1: server
+## Branch _"aligning_with_align"_
 
 Receives speech audio chunks from a [Unity c#-client srcipt]
 (https://github.com/rkarhila/unity_to_node_audio_2_client), 
@@ -45,28 +46,33 @@ Simple HTML page + some javascript is provided to test the server
 without access to the unmentionable game.
 
 This you can find the files under `static_testing/`. Copy to your
-public html or find some other way to serve them. To avoid 
+public html or set nginx to serve them directly. To avoid 
 cross-domain posting hassle, they should be served from the same
-computer that runs the server.
+host that runs the server.
 
 
 #### Files (what is happening and where)
 
 `server/`
 * `server_script.js` _The main server logic_
+* `config.js` _the necessary local settings__
 * `audio_handling/`
   * `audio_analyser.js` _pipes the audio data and result buffer to audio_analyser_all.sh_
   * `audio_analyser_all.js` _runs the feature extraction script and writes the features to a given buffer_
   * `audio_analyser_all.sh` _uses SPTK to create 30dim features from audio data (not required yet!)_
-  * `recogniser_client.js` _runs the recogniser backend instance(s)_
+  * ~~`recogniser_client.js` _runs the recogniser backend instance(s)_~~ Deprecated and will be removed.
+  * `shell_script_aligner.js` _runs the speech recognition aligner using a shell script_
+  * `shell_script_aligner.sh` _this is the shell script that runs the Aalto-ASR aligner_
   * `vad_stolen_from_sphinx.js`_a simple VAD from CMU Sphinx project (have to update license to give credit to this one!)_
   * `test_vad_with_wav.js` _an terminal utility for getting the speech frames for a wav file. Included just for testing__
 * `game_data_handling/`
   * `logging.js` _writes log files of player activity_
   * `game_data_handler.js` _saves and loads player progress_
-  * `fur_hat_scorer.js` _This is a skeleton for a simple scoring module)_
+  * `user_handler.js`_Handles authentication **Left out of version control**_
 * `scoring_handling/`
-  * `segmentation_handler.js` _takes the segmentation and tries to do some classification with it (in the future)_
+  * ~~`segmentation_handler.js` _takes the segmentation and tries to do some classification with it (in the future)_~~ Deprecated and will be removed.
+  * `a_less_impressive_segmentation_handler.js` _supposed to run the segment classification in the near future_
+  * `fur_hat_scorer.js` _This is a skeleton for a simple scoring module_
 * `log/` _game logs will be written here_
 * `upload_data/` _user speech data and features will be written here_
   * `debug/` _used to write weird stuff for debugging_
