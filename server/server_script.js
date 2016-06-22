@@ -23,7 +23,7 @@ var user_handler = require('./game_data_handling/user_handler.js');
 
 var userdata = {};
 
-var recogniser_client = require('./audio_handling/recogniser_client');
+//var recogniser_client = require('./audio_handling/recogniser_client');
 var vad = require('./audio_handling/vad_stolen_from_sphinx');
 
 

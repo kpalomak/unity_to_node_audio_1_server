@@ -18,6 +18,8 @@ var got_data_len = -300;
 var got_data = -400;
 var here_comes_answer = -500;
 
+var conf = require('../config.js');
+
 // constructor
 
 function SegmentationHandler(user) {
@@ -95,9 +97,10 @@ function SegmentationHandler(user) {
 
 		start = begin_end_and_model[0];
 		end = begin_end_and_model[1]-1;
+		length = Math.round((end-start)/conf.audioconf.frame_step_samples) + " frames"
 		state = begin_end_and_model[2]
 		
-		states.push({ 'state':state, 'start':start, 'end': end  })
+		states.push({ 'state':state, 'start':start, 'end': end , 'length': length  })
 		
 		if ( (index+1) %3 == 0) {		    
 		    segmentation_array.push( states );
