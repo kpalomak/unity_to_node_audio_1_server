@@ -172,6 +172,8 @@ process.on('user_event', function(user, wordid, eventname, eventdata) {
 		    userdata[user].currentword.segmentation = userdata[user].segmentation_handler.shell_segmentation_to_state_list(segmentation);
 		    userdata[user].currentword.segmentation_complete = true;
 
+		    userdata[user].segmentation_handler.get_classification( segmentation, userdata[user].featuredata  );
+		    
 		    //var likelihood = -100.0*Math.random();
 		    scorer.fur_hat_scorer(user, userdata[user].currentword.reference, wordid, userdata[user].currentword.segmentation);
 		}
@@ -546,7 +548,7 @@ function set_word_and_init_recogniser(user, word, word_id) {
     
     // //userdata[user].segmenter.init_segmenter(word, word_id);
 
-    //userdata[user].segmentation_handler.init_classification(word, word_id);
+    userdata[user].segmentation_handler.init_classification(word, word_id);
 
     // Kludging to continue; it really isn't necessary to do use events here but
     // I want to experiment quickly
@@ -804,7 +806,7 @@ function asyncAudioAnalysis(user) {
 	      ((analysis_end_frame-overlap_frames) ) + ")");
 	    */
 
-	    if (analysis_range_length > 0) {
+	    if ( analysis_range_length > 0) {
 
 
 		var packetnr = userdata[user].currentword.featureprogress.length;

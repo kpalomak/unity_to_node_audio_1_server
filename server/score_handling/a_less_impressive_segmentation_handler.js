@@ -8,7 +8,9 @@ var logging = require('../game_data_handling/logging.js');
 
 var HOST = 'localhost'; // The remote host
 var PORT = 50007;       // The same port as used by the server
-var ack  = '1';
+var ack  = -1;
+var ackbuffer;
+
 
 var payload_length = 270;
 var pause_between_packets = 20;
@@ -19,6 +21,10 @@ var got_data = -400;
 var here_comes_answer = -500;
 
 var conf = require('../config.js');
+
+
+
+var classifier_command = "./score_handling/keras_classifier_server.py";
 
 // constructor
 
@@ -31,9 +37,7 @@ function SegmentationHandler(user) {
     this.word_id = null;
 
     this.classifications = [];
-
     this.classifier_queue = [];
-
     this.classifier = null;
 
     this.connected;
@@ -50,10 +54,17 @@ function SegmentationHandler(user) {
 
     this.data_to_send = null;
 
+    this.port = conf.dnnconf.port;
+    this.datadim = conf.dnnconf.datadim;
+    this.timesteps = conf.dnnconf.timesteps;
+    this.datasize = conf.dnnconf.datasize;
+    
+    ackbuffer = new Buffer(4);
+    ackbuffer.writeInt32LE(-1);
 
     SegmentationHandler.prototype.init_classification = function(word, word_id) {
 	// placeholder for things to come:
-	var dummy = 1;
+	this.word_id = word_id;
     }
     
     SegmentationHandler.prototype.shell_segmentation_to_state_list = function(segmentation_string) {
@@ -186,67 +197,77 @@ function SegmentationHandler(user) {
 
 
 
-/*    get_classification = function(data1,data2,data3) {
+    SegmentationHandler.prototype.get_classification = function(segmentation, features) {
 
 	// Hastily copied from a test script, this could be so much better...
-
 	// Schedule for rewriting when I have some extra time and energy. Maybe 2023?
-
 
 	var state = "start";
 
-	var sizebuffer = new Buffer(4);
-	sizebuffer.writeInt32LE(payload.length);
 
 	var returnsizebuffer = new Buffer(4);
 
-	var payloadbuffer = Buffer.concat([data1, data2, data3]);
+	var payloadbuffer = new Buffer(this.datadim * this.timesteps * this.datasize);
+	
+	frame_segmentation= [segmentation[0][0] / conf.audioconf.frame_step_samples * this.data_dim * this.datasize,
+			     segmentation[0][1] / conf.audioconf.frame_step_samples * this.data_dim * this.datasize ]
 
-	completedata='';
-
-	var client = net.connect({port: PORT},
+	var sizebuffer = new Buffer(4);
+	sizebuffer.writeInt32LE(payloadbuffer.length/4); // 'Cause this the bad programming is! We'll send the number of data points,
+ 	                                                 // not the number of bytes we're sending!
+	
+	features.copy(payloadbuffer, 
+		      0, 
+		      frame_segmentation[0],
+		      Math.min(frame_segmentation[1], frame_segmentation[0] + this.timesteps) );
+	
+	var client = net.connect({port: this.port},
 				 function() { //'connect' listener
-				     debugout('connected to server!');
+				     debugout(this.user, 'connected to server!');
 				     client.write( sizebuffer );
 				     state ="waitforacc";
 				 });
 
+	var that = this;
+
 	client.on('data', function(data) {
-	    debugout("Got "+Object.prototype.toString.call(data)+" of length "+ data.length+" in state "+state);
+	    debugout(that.user, "Got "+Object.prototype.toString.call(data)+" of length "+ data.length+" in state "+state);
 	    if (state == "waitforacc") {
-		debugout("Got ack: "+data.toString());
+		debugout(that.user, "Got ack: "+data.readInt32LE(0));
 		client.write( payloadbuffer );
 		state = "waitforreturnlen";
 	    }
 	    else if (state == "waitforreturnlen") {
-		var returnsizebuffer = new Buffer( new Uint8Array(data) );
-		debugout("Got data length: "+ returnsizebuffer.readInt32LE(0,4));
-		client.write( ack );
+		var returnsizebuffer = new Buffer( new Int8Array(data) );
+		debugout(that.user, "Got data length: "+ returnsizebuffer.readInt32LE(0,4));
+		client.write( ackbuffer );
 		state = "waitforreturndata";
 	    }
 	    else if (state == "waitforreturndata") {
 		// From http://stackoverflow.com/questions/8609289/
 		// convert-a-binary-nodejs-buffer-to-javascript-arraybuffer
-		var returneddata = new Buffer( new Uint8Array(data) );
+		var returneddata = new Buffer( new Int8Array(data) );
+		var classes=[]
 
-		debugout("Got returned data: ");
+		debugout(that.user, "Got returned data: ");
 		for (var i =0; i< returneddata.length; i+=4) {
-		    debugout(returneddata.readFloatLE(i));
+		    classes.push(returneddata.readFloatLE(i))
 		}
-		
+		process.emit('user_event', 
+			     that.user, 
+			     that.word_id,
+			     'phones_classified', {
+				 'guessed_classes' : classes 
+			     });		
 		state = "done"; 
 		client.end();
 		
 	    }
 	});
 	client.on('end', function() {
-	    debugout('disconnected from server');
+	    debugout(that.user, 'disconnected from classification server');
 	});
-
-
     }
-*/
-
 }
 
 
