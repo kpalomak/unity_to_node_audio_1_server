@@ -54,7 +54,10 @@ function SegmentationHandler(user) {
 
     this.data_to_send = null;
 
-    this.port = conf.dnnconf.port;
+    
+    
+
+
     this.datadim = conf.dnnconf.datadim;
     this.timesteps = conf.dnnconf.timesteps;
     this.datasize = conf.dnnconf.datasize;
@@ -107,7 +110,7 @@ function SegmentationHandler(user) {
 		begin_end_and_model = line.split(" ");
 
 		start = begin_end_and_model[0];
-		end = begin_end_and_model[1]-1;
+		end = begin_end_and_model[1];//-1;
 		length = Math.round((end-start)/conf.audioconf.frame_step_samples) + " frames"
 		state = begin_end_and_model[2]
 		
@@ -205,67 +208,103 @@ function SegmentationHandler(user) {
 	var state = "start";
 
 
-	var returnsizebuffer = new Buffer(4);
-
-	var payloadbuffer = new Buffer(this.datadim * this.timesteps * this.datasize);
+	var returnsizebuffer = new Buffer(4,0);
 	
-	frame_segmentation= [segmentation[0][0] / conf.audioconf.frame_step_samples * this.data_dim * this.datasize,
-			     segmentation[0][1] / conf.audioconf.frame_step_samples * this.data_dim * this.datasize ]
+	var payloadbuffer = new Buffer( segmentation.length *  this.datadim * this.timesteps * this.datasize);
+	payloadbuffer.fill(0);
+
+	for (var i = 0; i < segmentation.length; i++) {
+	    segment=segmentation[i];
+	    
+	    segmentstartpoint = segment[0]['start'] / conf.audioconf.frame_step_samples * this.datadim * this.datasize;
+	    segmentendpoint = segment[2]['end'] / conf.audioconf.frame_step_samples * this.datadim * this.datasize;
+
+	    debugout(this.user, "Copying bytes "+ segmentstartpoint +"-"+segmentendpoint + " of features to the buffer");
+	    debugout(this.user, "Copying "+ Math.min(segmentendpoint-segmentstartpoint, this.datadim * this.timesteps * 4) + " bytes of features to the buffer");
+
+	    payloadstartpoint =  i *  this.datadim * this.timesteps * this.datasize;
+
+	    debugout(this.user, "Put that data in the payload buffer starting at " + payloadstartpoint );
+
+	    debugout(this.user, "And end at Math.min("+segmentendpoint+", "+segmentstartpoint+" + "+this.datadim +" * "+ this.timesteps + " * " +this.datasize +" ) --> " + (Math.min(segmentendpoint, segmentstartpoint + this.datadim * this.timesteps * this.datasize  ) ) );
+
+	    features.copy(payloadbuffer, 			 
+			  payloadstartpoint,
+			  segmentstartpoint,
+			  Math.min(segmentendpoint, segmentstartpoint + this.datadim * this.timesteps * this.datasize ) );
+	    
+
+	    //for (var n=0; n<30; n+=4) {
+	    //debugout(user, "n="+n);
+	    //debugout( user, (n/4)+ " "+ features.readFloatLE(segmentstartpoint+n) +" -> " + 
+	    //payloadbuffer.readFloatLE( payloadstartpoint +  n) );
+	    //}
+	    
+	} 
 
 	var sizebuffer = new Buffer(4);
 	sizebuffer.writeInt32LE(payloadbuffer.length/4); // 'Cause this the bad programming is! We'll send the number of data points,
  	                                                 // not the number of bytes we're sending!
-	
-	features.copy(payloadbuffer, 
-		      0, 
-		      frame_segmentation[0],
-		      Math.min(frame_segmentation[1], frame_segmentation[0] + this.timesteps) );
-	
-	var client = net.connect({port: this.port},
-				 function() { //'connect' listener
-				     debugout(this.user, 'connected to server!');
-				     client.write( sizebuffer );
-				     state ="waitforacc";
-				 });
 
+	
 	var that = this;
+	
+	fs.writeFile("/tmp/payloaddata", payloadbuffer); 
 
-	client.on('data', function(data) {
-	    debugout(that.user, "Got "+Object.prototype.toString.call(data)+" of length "+ data.length+" in state "+state);
-	    if (state == "waitforacc") {
-		debugout(that.user, "Got ack: "+data.readInt32LE(0));
-		client.write( payloadbuffer );
-		state = "waitforreturnlen";
-	    }
-	    else if (state == "waitforreturnlen") {
-		var returnsizebuffer = new Buffer( new Int8Array(data) );
-		debugout(that.user, "Got data length: "+ returnsizebuffer.readInt32LE(0,4));
-		client.write( ackbuffer );
-		state = "waitforreturndata";
-	    }
-	    else if (state == "waitforreturndata") {
-		// From http://stackoverflow.com/questions/8609289/
-		// convert-a-binary-nodejs-buffer-to-javascript-arraybuffer
-		var returneddata = new Buffer( new Int8Array(data) );
-		var classes=[]
+	fs.readFile(conf.dnnconf.port_number_file, function(err, port) {
+	    
 
-		debugout(that.user, "Got returned data: ");
-		for (var i =0; i< returneddata.length; i+=4) {
-		    classes.push(returneddata.readFloatLE(i))
-		}
-		process.emit('user_event', 
-			     that.user, 
-			     that.word_id,
-			     'phones_classified', {
-				 'guessed_classes' : classes 
-			     });		
-		state = "done"; 
-		client.end();
+	    debugout( user, "Connecting to port >"+port+"<");
+	    
+	    var client = net.connect({port: ""+port},
+				     function() { //'connect' listener
+					 debugout(this.user, 'connected to server!');
+					 client.write( sizebuffer );
+					 state ="waitforacc";
+				     });
+	    
+	    
+	    client.on('data', function(data) {
+
+		debugout(that.user, "Got "+Object.prototype.toString.call(data)+" of length "+ data.length+" in state "+state);
 		
-	    }
-	});
-	client.on('end', function() {
-	    debugout(that.user, 'disconnected from classification server');
+		if (state == "waitforacc") {
+		    debugout(that.user, "Got ack: "+data.readInt32LE(0));
+		    client.write( payloadbuffer );
+		    state = "waitforreturnlen";
+		}
+		
+		else if (state == "waitforreturnlen") {
+		    var returnsizebuffer = new Buffer( new Int8Array(data) );
+		    debugout(that.user, "Got data length: "+ returnsizebuffer.readInt32LE(0,4));
+		    client.write( ackbuffer );
+		    state = "waitforreturndata";
+		}
+		else if (state == "waitforreturndata") {
+		    // From http://stackoverflow.com/questions/8609289/
+		    // convert-a-binary-nodejs-buffer-to-javascript-arraybuffer
+		    var returneddata = new Buffer( new Int8Array(data) );
+		    var classes=[]
+
+		    debugout(that.user, "Got returned data: ");
+		    for (var i =0; i< returneddata.length; i+=4) {
+			classes.push(returneddata.readFloatLE(i))
+		    }
+		    process.emit('user_event', 
+				 that.user, 
+				 that.word_id,
+				 'phones_classified', {
+				     'guessed_classes' : classes 
+				 });		
+		    state = "done"; 
+		    client.end();
+		    
+		}
+	    });
+
+	    client.on('end', function() {
+		debugout(that.user, 'disconnected from classification server');
+	    });
 	});
     }
 }

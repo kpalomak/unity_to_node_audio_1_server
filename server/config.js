@@ -41,7 +41,8 @@ module.exports = {
 	'port' : 16054,
 	'datadim' : 30,
 	'timesteps' : 63,
-	'datasize' : 4
+	'datasize' : 4,
+	'port_number_file' : '/home/backend/siak-server/keras_server/ports/portnr'
 	//'model_arch_file':  '/l/data/siak-server-devel/server/dnn_models/l1000_d0.6-2016-07-12-architecture.json',
 	//'model_weight_file' : '/l/data/siak-server-devel/server/dnn_models/l1000_d0.6-2016-07-12-weights.26-1.54.hdf5',
 	//'model_norm_file' : '/l/data/siak-server-devel/server/dnn_models/clean.mean_and_std.pkl'

@@ -6,7 +6,9 @@ if (process.env.NODE_ENV !== 'production'){
 
     longjohn.async_trace_limit = 25;   // defaults to 10
 }
+var logging = require('../game_data_handling/logging.js');
 
+var featext_command = "./audio_handling/audio_analyser_all.sh";
 
 //var eventEmitter = require('./emitters.js');
 
@@ -20,6 +22,7 @@ var DEBUG_TEXTS = false;
 var sptk_path='/usr/local/bin/';
 
 var debug = true;
+var DEBUG_TEXTS = true;
 
 var fs = require('fs');
 
@@ -32,18 +35,7 @@ var outputbuffer = Buffer.concat([]);
 
 function compute_features(audioconf, inputbuffer, targetbuffer, user, word_id, packetcode, maxpoint) {
 
-    //DEBUG_TEXTS = audioconf.debug_f0;
-
     print_debug("== EXCITING!!! user: "+user+" word_id: "+word_id+" packetcode: "+ packetcode +" maxpoint: " +maxpoint +"======");
-
-    //var frame_step_samples = audioconf.frame_step_samples;
-    //var lsforder = audioconf.lsforder;
-    //var lsflength = audioconf.lsflength; // Should be order +1
-    //var mfccorder = audioconf.mceporder;
-    //var mfcclength = audioconf.mceplength;  // Should be order +1
-    //var lsf_start = 1;
-    //var mfcc_start = lsflength+1;
-    //var features_length = mfcclength+lsflength+1;
 
     var tmpdir = "/dev/shm/siak-"+process.pid+"-"+user+"_"+word_id+"_"+packetcode+"_"+Date.now();
 
@@ -58,9 +50,9 @@ function compute_features(audioconf, inputbuffer, targetbuffer, user, word_id, p
 	}
 	else {
 	    
-	    print_debug("Starting the shell script now:");
+	    print_debug( user, "Starting the shell script now:");
 	    
-	    var featext_command = "./analysis_scripts/audio_analyser_all.sh";
+	    
 	    var featext_args = [tmpinput, tmpoutput];
 	    
 	    var featext = spawn(featext_command, featext_args);
@@ -73,19 +65,27 @@ function compute_features(audioconf, inputbuffer, targetbuffer, user, word_id, p
 	    featext.on('uncaughtException', function(err) { show_error(err, 'Feat on uncaughtexp');});
 	    
 	    featext.on('close',  function(exit_code)  { 
-		print_debug("Shell script exit: "+exit_code.toString());
+		print_debug( user, "Shell script exit: "+exit_code.toString());
 		if (exit_code == 0) {
 		    
+		    // Copy the features for debug purposes:
+		    //fs.createReadStream( tmpoutput ).pipe(fs.createWriteStream('/tmp/feat'));
+		    
+
 		    fs.readFile(tmpoutput, function (err, outputbuffer) {
 			if (err) throw err;
 			
-			console.log("From outputbuffer to targetbuffer: 0,"+outputbuffer.length)
+			print_debug( user, "From outputbuffer to targetbuffer: 0,"+outputbuffer.length)
+
+			//for (var n=0; n< 120; n+=4) {
+			//    print_debug( user, (n/4)+" "+outputbuffer.readFloatLE(n));
+			//}
 
 			outputbuffer.copy(targetbuffer, 0, 0, outputbuffer.length);
 
-			print_debug('Feature analysis done; Data length: '+outputbuffer.length);	   
+			print_debug( user, 'Feature analysis done; Data length: '+outputbuffer.length);	   
 			
-			print_debug('Emitting features_done');
+			print_debug( user, 'Emitting features_done');
 			process.emit('user_event', user, word_id, 'features_done', {packetcode:packetcode, maxpoint:maxpoint}); 			
 			
 			
@@ -113,12 +113,6 @@ function compute_features(audioconf, inputbuffer, targetbuffer, user, word_id, p
 
 
 
-function show_error(err, source) {
-    print_debug("=SPTK ERR== Error from "+source);
-    print_debug(err);
-}
-
-
 
 function show_exit(exit_code, source) {
     if (DEBUG_TEXTS) {
@@ -134,13 +128,11 @@ function show_exit(exit_code, source) {
 }
 
 
-function print_debug(text) {
+function print_debug(user,text) {
     if (DEBUG_TEXTS) 
     {
-	console.log("=SPTK DBG== "+text);
+	console.log( "\x1b[37maudio2  %s\x1b[0m", logging.get_date_time().datetime + ' '+user + ': '+text);
     }
 }
-
-
 
 module.exports = { compute_features : compute_features };

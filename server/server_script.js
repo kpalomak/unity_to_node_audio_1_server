@@ -172,7 +172,7 @@ process.on('user_event', function(user, wordid, eventname, eventdata) {
 		    userdata[user].currentword.segmentation = userdata[user].segmentation_handler.shell_segmentation_to_state_list(segmentation);
 		    userdata[user].currentword.segmentation_complete = true;
 
-		    userdata[user].segmentation_handler.get_classification( segmentation, userdata[user].featuredata  );
+		    userdata[user].segmentation_handler.get_classification( userdata[user].currentword.segmentation, userdata[user].featuredata  );
 		    
 		    //var likelihood = -100.0*Math.random();
 		    scorer.fur_hat_scorer(user, userdata[user].currentword.reference, wordid, userdata[user].currentword.segmentation);
@@ -453,18 +453,20 @@ function init_userdata(user) {
     if (typeof userdata[user] == 'undefined') {
 	userdata[user] = {};
 
+	// Initialise all the buffers with zeros:
+
 	userdata[user].chunkeddata = new Buffer( audioconf.max_packet_length_s * 
 						 audioconf.fs * 
-						 audioconf.datatype_length );
+						 audioconf.datatype_length ,0);
 
 	userdata[user].audiobinarydata = new Buffer( 
-	    audioconf.max_utterance_length_s * audioconf.fs * audioconf.datatype_length );
+	    audioconf.max_utterance_length_s * audioconf.fs * audioconf.datatype_length ,0);
 
 	userdata[user].featuredata = new Buffer( 
 	    Math.ceil(audioconf.max_utterance_length_s * 
 		      audioconf.fs / 
 		      audioconf.frame_step_samples * 
-		      audioconf.feature_dim ) );	
+		      audioconf.feature_dim ) ,0);	
 
 	userdata[user].segmenter_ready = false;
 
@@ -657,6 +659,16 @@ function check_last_packet(user) {
 				      userdata[user].audiobinarydata); 			 
 		   }
 	    
+	    var sh_feat_ext = require('./audio_handling/audio_analyser');
+
+	    sh_feat_ext.compute_features( audioconf,
+					  userdata[user].audiobinarydata.slice(userdata[user].currentword.vad.speechstart,  
+									       userdata[user].currentword.vad.speechend   ),
+					  userdata[user].featuredata,
+					  user, 
+					  userdata[user].currentword.id,
+					  packetnr,
+					  userdata[user].currentword.vad.speechend);
 	    
 	}
 	else {
@@ -790,22 +802,8 @@ function asyncAudioAnalysis(user) {
 	    var overlap_frames = Math.ceil((audioconf.frame_length_samples - audioconf.frame_step_samples)/ audioconf.frame_step_samples );
 	    
 	    userdata[user].currentword.featureend = analysis_end_frame;
-	    /*
-	      debugout("******** Sending to audio analysis: " + already_sent_to_analysis +"-"+userdata[user].currentword.bufferend +
-	      " --> framed to " + analysis_range_start + 
-	      " - " + analysis_range_end +
-	      " (frames " +
-	      (analysis_range_start/ audioconf.frame_step_samples) + "-" +
-	      (analysis_range_end/ audioconf.frame_step_samples) + ")");
-	      
-	      debugout("******** Waiting in return: " + 
-	      " --> framed to " + analysis_start_frame * audioconf.dimensions +
-	      " - " + (analysis_end_frame-overlap_frames) * audioconf.dimensions +
-	      " (frames " +
-	      (analysis_start_frame) + "-" +
-	      ((analysis_end_frame-overlap_frames) ) + ")");
-	    */
 
+	    /*
 	    if ( analysis_range_length > 0) {
 
 
@@ -829,6 +827,8 @@ function asyncAudioAnalysis(user) {
 		debugout(user +": Audio analysis of length 0 requested ("+analysis_range_start+"-"+analysis_range_end+")... This is bad manners.");
 
 	    }
+	    */
+
 	    /*
 	    if (recog_range_end-recog_range_start > 0) {
 		// Send data to the recogniser processes:
@@ -839,6 +839,8 @@ function asyncAudioAnalysis(user) {
 		debugout(user + ": Sending to recogniser data of length 0 requested ("+recog_range_start+"-"+recog_range_end+")... This is bad manners.");
 	    }    
 	    */
+
+
 	    /* If the VAD just informed us that the end is near, finish the recognition: */
 	    if (userdata[user].currentword.vad.speechend > -1) {
 		debugout(user + ": Finishing recognition as VAD says signal ends at "+userdata[user].currentword.vad.speechend);
