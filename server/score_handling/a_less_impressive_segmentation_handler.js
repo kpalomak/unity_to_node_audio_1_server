@@ -293,7 +293,7 @@ function SegmentationHandler(user) {
 		    process.emit('user_event', 
 				 that.user, 
 				 that.word_id,
-				 'phones_classified', {
+				 'classification_done', {
 				     'guessed_classes' : classes 
 				 });		
 		    state = "done"; 

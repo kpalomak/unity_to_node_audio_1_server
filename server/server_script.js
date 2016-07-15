@@ -29,7 +29,7 @@ var vad = require('./audio_handling/vad_stolen_from_sphinx');
 
 var segmentation_handler  = new require('./score_handling/a_less_impressive_segmentation_handler.js');
 
-var scorer =  require('./score_handling/fur_hat_scorer.js');
+var scorer =  require('./score_handling/magicians_hat_scorer.js');
 
 var audioconf = conf.audioconf;
 var recogconf = conf.recogconf;
@@ -155,15 +155,22 @@ process.on('user_event', function(user, wordid, eventname, eventdata) {
 		asyncAudioAnalysis(user);	    
 	    }
 	    else if (eventname ==  'features_done') {
-		userdata[user].currentword.featureprogress [eventdata.packetcode] = eventdata.maxpoint;
-		userdata[user].currentword.featuresdone = userdata[user].currentword.featureprogress [0]
 
-		for (var n = 1; n < userdata[user].currentword.featureprogress.length; n++) {
-		    if (userdata[user].currentword.featuresdone !== 0 && userdata[user].currentword.featureprogress[n] > 0) {
-			userdata[user].currentword.featuresdone = userdata[user].currentword.featureprogress[n]
-		    }
+		// This is old stuff, remove the following lines if the "new" way of a single, quick extract works well enough:
+		//userdata[user].currentword.featureprogress [eventdata.packetcode] = eventdata.maxpoint;
+		//userdata[user].currentword.featuresdone = userdata[user].currentword.featureprogress [0]
+		//for (var n = 1; n < userdata[user].currentword.featureprogress.length; n++) {
+		//  if (userdata[user].currentword.featuresdone !== 0 && userdata[user].currentword.featureprogress[n] > 0) {
+		//	userdata[user].currentword.featuresdone = userdata[user].currentword.featureprogress[n]
+		//    }
+		//}
+		// //check_feature_progress(user);
+		userdata[user].currentword.featuresdone = true;
+
+		if (userdata[user].currentword.segmentation_complete == true && userdata[user].currentword.featuresdone == true ) {
+		    userdata[user].segmentation_handler.get_classification( userdata[user].currentword.segmentation, userdata[user].featuredata  );
 		}
-		//check_feature_progress(user);
+
 	    }
 	    else if (eventname == 'segmented' ) {
 		segmentation = eventdata.segmentation;
@@ -172,10 +179,14 @@ process.on('user_event', function(user, wordid, eventname, eventdata) {
 		    userdata[user].currentword.segmentation = userdata[user].segmentation_handler.shell_segmentation_to_state_list(segmentation);
 		    userdata[user].currentword.segmentation_complete = true;
 
-		    userdata[user].segmentation_handler.get_classification( userdata[user].currentword.segmentation, userdata[user].featuredata  );
+
+		    if (userdata[user].currentword.segmentation_complete == true && userdata[user].currentword.featuresdone == true ) {
+			userdata[user].segmentation_handler.get_classification( userdata[user].currentword.segmentation, userdata[user].featuredata  );
+		    }
+
 		    
 		    //var likelihood = -100.0*Math.random();
-		    scorer.fur_hat_scorer(user, userdata[user].currentword.reference, wordid, userdata[user].currentword.segmentation);
+		    // scorer.fur_hat_scorer(user, userdata[user].currentword.reference, wordid, userdata[user].currentword.segmentation);
 		}
 		else 
 		{
@@ -184,7 +195,7 @@ process.on('user_event', function(user, wordid, eventname, eventdata) {
 		    userdata[user].currentword.segmentation_complete = true;
 
 		    // Segmentation failed, let's send a zero score to the client:
-		    send_score_and_clear(user, "1", null);
+		    send_score_and_clear(user, {"total_score" : -1, "error" : "Segmentation failed"});
 		}
 		    
 		//check_feature_progress(user);
@@ -195,20 +206,26 @@ process.on('user_event', function(user, wordid, eventname, eventdata) {
 		userdata[user].currentword.segmentation_complete = true;
 	
 		debugout(colorcodes.event, user +": SEGMENTATION FAILED!");
-		send_score_and_clear(user, "-2", null);
+		send_score_and_clear(user, {"total_score" : -2, "error" : "Segmentation error"});
 		
 		//check_feature_progress(user);
 	    }	
 	    else if (eventname == 'classification_done') {
-		userdata[user].currentword.phoneme_classes = eventdata.classification
+		userdata[user].currentword.guessed_classes = eventdata.guessed_classes
 
 		debugout(colorcodes.event, user +": CLASSIFICATION DONE AND THERE IS NO WAY FORWARD!");
 		// While debugging with Aleks we don't want to rely on the ASR component
 		// calc_score_and_send_reply(user);				
+
+		scorer.magicians_hat_scorer(user, 
+					    userdata[user].currentword.reference, 
+					    wordid, 
+					    userdata[user].currentword.guessed_classes, 
+					    userdata[user].currentword.segmentation);
 		
 	    }
 	    else if (eventname == 'scoring_done') {
-		send_score_and_clear(user, eventdata.total_score, eventdata.phoneme_scores);
+		send_score_and_clear(user, eventdata);
 	    }
 	    else  {
 		debugout(colorcodes.event, user + ": Don't know what to do with this event!");
@@ -261,17 +278,28 @@ function audio_packet_reply(user,res, packetnr, usevad) {
 }
 
 // Reply to the last packer call:
-function send_score_and_clear(user, total_score, phoneme_scores) {
+function send_score_and_clear(user, score_object) {
 
-    userdata[user].lastPacketRes.end( total_score.toString() );
     
+    var speech_start =  userdata[user].currentword.vad.speechstart / conf.audioconf.fs / 4;
+    var speech_end =  userdata[user].currentword.vad.speechend / conf.audioconf.fs / 4;
+    var speech_dur =  speech_end - speech_start;
+
+    score_object.speech_start = speech_start;
+    score_object.speech_end = speech_end;
+    score_object.speech_dur = speech_dur;
+
+    userdata[user].lastPacketRes.end( JSON.stringify( score_object ) );
+
     logging.log_scoring({user: user,
 			 packetcount: userdata[user].currentword.lastpacketnr,
 			 word_id : userdata[user].currentword.id,
-			 score: total_score, 
+			 score: score_object.total_score, 
 			 reference : userdata[user].currentword.reference,
-			 phoneme_scores : phoneme_scores,
-			 segmentation: userdata[user].currentword.segmentation, 
+			 phoneme_scores : score_object.phoneme_scores,
+			 reference : score_object.reference_phones,
+			 guess : score_object.guess_phones
+			 //segmentation: userdata[user].currentword.segmentation, 
 			 //classification: userdata[user].currentword.phoneme_classes 
 			});
     
