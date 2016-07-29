@@ -17,6 +17,6 @@ model=$5 #"/home/backend/models-clean-am/siak_clean_a"
 
 
 echo "audio=$3 transcript=$4 alignment=$6" | \
-    align -i 2 --swins=100000 -b $model -c $model.cfg -r /dev/stdin
+    align -i 2 --swins=100000 --beam=300.0 --maxbeam=300.1 -b $model -c $model.cfg -r /dev/stdin
 
 

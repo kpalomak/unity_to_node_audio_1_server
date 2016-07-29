@@ -134,6 +134,7 @@ function get_date_time() {
     day = (day < 10 ? "0" : "") + day;
     
     return { datetime: year + ":" + month + ":" + day + ":" + hour + ":" + min + ":" + sec+":"+millisec, 
+	     datetime_for_file : year + ""  + month + "" + day + "-" + hour + "" + min + "" + sec+"-"+millisec, 
 	     timestamp: date.toString() };
 }
 

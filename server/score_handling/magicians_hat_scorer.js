@@ -128,21 +128,21 @@ var magicians_hat_scorer = function(user, word, wordid, guesses, segmentation, l
 
 	guess_phones.push(guess_ipa)
 
-	debugout(user,  "Ref IPA "+ref_ipa + " Guess IPA "+guess_ipa);
+	debugout(user,  "Ref: "+ref_phone +"->" + ref_ipa + " Guess: "+ guess_class +"->" + class_definitions.classes_to_aalto [ guess_class ] +"->"+guess_ipa);
 	if (guess_ipa == ref_ipa) {
 	    scores.push(100);
 	}
 
 	else {
-	    
 	    target_guesses[ indexOfMax(target_guesses) ] = -1;
 	    second_guess_class = indexOfMax(target_guesses);
-	    second_guess_ipa = class_definitions.festival_unilex_to_ipa [
-                                class_definitions.arpa_to_festival_unilex [
-                                       class_definitions.aalto_to_arpa[
-                                             class_definitions.classes_to_aalto [ second_guess_class ] ] ] ];
 
-	    debugout(user,  "Secong guess IPA: "+second_guess_ipa);
+	    second_guess_ipa = class_definitions.festival_unilex_to_ipa [
+                                  class_definitions.arpa_to_festival_unilex [
+                                      class_definitions.aalto_to_arpa[
+                                           class_definitions.classes_to_aalto [ second_guess_class ] ] ] ];
+
+	    debugout(user,  "Second guess: " +second_guess_class + "->" +second_guess_ipa);
 
 	    if ( second_guess_ipa == ref_ipa ) {
 		scores.push(75);
@@ -151,6 +151,8 @@ var magicians_hat_scorer = function(user, word, wordid, guesses, segmentation, l
 
 		guess = class_definitions.phone_properties[guess_ipa];
 		ref = class_definitions.phone_properties[ref_ipa];
+
+		//console.log(  parseInt(guess.frontness.value) +  parseInt(ref.frontness.value)  );
 
 		var score = 0.0;
 
@@ -165,35 +167,36 @@ var magicians_hat_scorer = function(user, word, wordid, guesses, segmentation, l
 			score += 25;
 		}	    
 		
-		else if (guess.type.name == 'vowel' && ref.type.name == 'vowel' ) {
+		else if (guess.type.name === 'vowel' && ref.type.name === 'vowel' ) {
+
 		    score += 20;
 		    
-		    if (guess.vowel_length == ref.vowel_length ) 
+		    if (parseInt(guess.vowel_length.value) == parseInt(ref.vowel_length.value) ) 
 			score += 10;
 		    
-		    if (guess.frontess == ref.frontness ) 
+		    if (parseInt(guess.frontness.value) == parseInt(ref.frontness.value) ) 
 			score += 10;
 
 		    else 
-			if ( Math.abs(guess.frontess.val - ref.frontness.val)<2 ) 
+			if ( Math.abs( parseInt(guess.frontness.value) - parseInt(ref.frontness.value) )<2 ) 
 			    score +=5;
 
 		    if (guess.openness == ref.openness ) 
 			score += 10;
 		    else 
-			if ( Math.abs(guess.openness.val - ref.openness.val)<2 ) 
+			if ( Math.abs(guess.openness.value - ref.openness.value)<2 ) 
 			    score +=5;
 		    
-		    if (guess.diphtong_frontess == ref.diphtong_frontness ) 
+		    if (guess.diphtong_frontness == ref.diphtong_frontness ) 
 			score += 10;
 		    else 
-			if ( Math.abs(guess.diphtong_frontess.val - ref.diphtong_frontness.val)<2 ) 
+			if ( Math.abs(guess.diphtong_frontness.value - ref.diphtong_frontness.value)<2 ) 
 			    score +=5;
 
 		    if (guess.diphtong_openness == ref.diphtong_openness ) 
 			score += 10;		
 		    else 
-			if ( Math.abs(guess.diphtong_openness.val - ref.diphtong_openness.val)<2 ) 
+			if ( Math.abs(guess.diphtong_openness.value - ref.diphtong_openness.value)<2 ) 
 			    score +=5;
 
 		    if (guess.roundness == ref.roundness ) 

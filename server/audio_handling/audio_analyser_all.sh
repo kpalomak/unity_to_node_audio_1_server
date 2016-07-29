@@ -43,7 +43,7 @@ min_lpc_determinant=0.000001;
 #echo "pitch" 1>&2
 
 cat $workdir/rawinput.temp | \
-$sptk/pitch -a 0 -s 16 -p $frame_step_samples -L $pitch_low -H $pitch_high | \
+$sptk/pitch -a 1 -s 16 -p $frame_step_samples -L $pitch_low -H $pitch_high | \
 x2x +fa | awk '{if ($1 == 0) {print "-1"} else {print log($1)}}' | x2x +af \
 > $workdir/pitch.temp
 

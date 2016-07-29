@@ -69,7 +69,7 @@ function compute_features(audioconf, inputbuffer, targetbuffer, user, word_id, p
 		if (exit_code == 0) {
 		    
 		    // Copy the features for debug purposes:
-		    //fs.createReadStream( tmpoutput ).pipe(fs.createWriteStream('/tmp/feat'));
+		    fs.createReadStream( tmpoutput ).pipe(fs.createWriteStream('/tmp/feat'));
 		    
 
 		    fs.readFile(tmpoutput, function (err, outputbuffer) {
@@ -111,6 +111,11 @@ function compute_features(audioconf, inputbuffer, targetbuffer, user, word_id, p
     });
 }
 
+
+function show_error(error, source) {
+    console.log( "\x1b[41m\x1b[1mmaudio2  %s\x1b[0m", logging.get_date_time().datetime + ' ERROR from '+source +": "+error);
+    //console.log( "\x1b[37maudio2  %s\x1b[0m", logging.get_date_time().datetime + ' ERROR from '+source +": "+error);
+}
 
 
 

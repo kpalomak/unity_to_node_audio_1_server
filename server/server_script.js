@@ -660,7 +660,7 @@ function check_last_packet(user) {
 	if ((chunkcount == userdata[user].currentword.lastpacketnr)|| (userdata[user].currentword.vad.speechend > -1)) {		
 	    // Send a null packet to recogniser as sign of finishing:
 
-	    if (userdata[user].currentword.vad.speechend > -1)
+	    if (userdata[user].currentword.vad.speechend > -1 && userdata[user].currentword.vad.speechend <= userdata[user].currentword.bufferend )
 		debugout(user + ": check_last_packet all good - VAD says we're done : Calling Finish_audio");
 	    if (chunkcount == userdata[user].currentword.lastpacketnr)
 		debugout(user + ": check_last_packet all good - All chunks in : Calling Finish_audio");
@@ -753,6 +753,10 @@ function asyncAudioAnalysis(user) {
 	    {
 		userdata[user].currentword.vad.speechstart = Math.max(0, i - (conf.vad.speech_frame_thr * conf.vad.window));		
 		debugout(user +": Starting speech at bit "+ userdata[user].currentword.vad.speechstart);
+		debugout(user +": But we are merciful; let's give it another 200ms ( -> 3200 samples ) extra time if possible");
+		userdata[user].currentword.vad.speechstart = Math.max(0, userdata[user].currentword.vad.speechstart - 4*3200);
+		debugout(user +": Really starting speech at bit "+ userdata[user].currentword.vad.speechstart);
+
 	    }
 	    else if ((userdata[user].currentword.vad.speechstart > -1 ) && 
 		     ( userdata[user].currentword.vad.speechend < 0 ) && 
@@ -760,6 +764,9 @@ function asyncAudioAnalysis(user) {
 	    {
 		userdata[user].currentword.vad.speechend = i - (conf.vad.sil_frame_thr * conf.vad.window) ;
 		debugout(user +": Ending speech at bit "+ userdata[user].currentword.vad.speechend);
+		debugout(user +": But we are merciful; let's give it another 200ms ( -> 3200 samples ) extra time if possible");
+		userdata[user].currentword.vad.speechend += 4*3200 ;
+		debugout(user +": Really ending speech at bit "+ userdata[user].currentword.vad.speechend);
 	    }
 	}
 	userdata[user].currentword.vad.level = vadp.level;	
@@ -870,8 +877,8 @@ function asyncAudioAnalysis(user) {
 
 
 	    /* If the VAD just informed us that the end is near, finish the recognition: */
-	    if (userdata[user].currentword.vad.speechend > -1) {
-		debugout(user + ": Finishing recognition as VAD says signal ends at "+userdata[user].currentword.vad.speechend);
+	    if (userdata[user].currentword.vad.speechend > -1 &&  userdata[user].currentword.vad.speechend <= userdata[user].currentword.bufferend )  {
+		debugout(user + ": Finishing recognition as VAD says signal ends at "+userdata[user].currentword.vad.speechend +" and we have buffer of " +  userdata[user].currentword.bufferend);
 		process.emit('user_event', user, userdata[user].currentword.id,'last_packet_check', null);
 	    }
 
