@@ -92,8 +92,13 @@ function align_with_shell_script(conf, inputbuffer, word_reference, user, word_i
     writer.end();
 
     // Make a copy of the wav file (async to save time):
-    // #cp $3 "/l/data/siak-server-devel/server/upload_data/from_game/${1}_`date +"%Y-%m-%d-%H-%M-%S"`.wav"    
-    var target_wavfile = 'upload_data/from_game/'+user +'_'+ word_id +'_'+ word_reference  +'_'+ logging.get_date_time().datetime_for_file + ".wav" ;
+    // #cp $3 "/l/data/siak-server-devel/server/upload_data/from_game/${1}_`date +"%Y-%m-%d-%H-%M-%S"`.wav"
+    var target_dir =  'upload_data/from_game/'+user;
+    var mkdirp = require('mkdirp');
+    mkdirp(target_dir, function(err) { 
+    	// path exists unless there was an error
+	});
+    var target_wavfile = target_dir + '/' + user +'_'+ word_id +'_'+ word_reference  +'_'+ logging.get_date_time().datetime_for_file + ".wav" ;
     print_debug("target_wavfile :" + target_wavfile );
     print_debug("wavinput :" + wavinput );
 
