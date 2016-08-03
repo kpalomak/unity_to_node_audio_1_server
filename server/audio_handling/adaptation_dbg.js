@@ -146,4 +146,4 @@ function adaptation(){
 	debugout("kekkonen");
 }
 
-module.exports = { adaptation: adaptation };
+adaptation();

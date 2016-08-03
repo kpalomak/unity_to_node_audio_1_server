@@ -13,7 +13,7 @@ var http = require('http');
 var util = require('util');
 var url = require('url');
 var fs = require('fs');
-
+var flag_ada_running=0;
 
 var conf = require('./config');
 
@@ -25,7 +25,6 @@ var userdata = {};
 
 //var recogniser_client = require('./audio_handling/recogniser_client');
 var vad = require('./audio_handling/vad_stolen_from_sphinx');
-
 
 var segmentation_handler  = new require('./score_handling/a_less_impressive_segmentation_handler.js');
 
@@ -201,7 +200,21 @@ process.on('user_event', function(user, wordid, eventname, eventdata) {
 		//check_feature_progress(user);
 
 	    }
-	    else if (eventname ==  'segmentation_error') {
+	    else if (eventname == 'kalle_dbg') {
+		debugout(colorcodes.event, 'kalle_dbg: ' + eventdata.toString());
+		score_event_object = { 'total_score' :  5};
+		/*	   'phoneme_scores' : scores,
+			   'reference_phones' : reference_phones,
+			   'guess_phones' : guess_phones,
+			   'error': null };*/	
+		userdata[user].currentword.wavfilename = eventdata.target_wavfile;
+		userdata[user].currentword.adawavfilename = eventdata.adaptation_wavfile; 
+		process.emit('user_event', user, userdata[user].currentword.id, 'scoring_done',score_event_object);
+
+		
+	    }
+
+	    else if (eventname == 'segmentation_error') {
 		userdata[user].currentword.segmentation = null;
 		userdata[user].currentword.segmentation_complete = true;
 	
@@ -225,6 +238,38 @@ process.on('user_event', function(user, wordid, eventname, eventdata) {
 		
 	    }
 	    else if (eventname == 'scoring_done') {
+		debugout(colorcodes.event,'kalle score: ' + eventdata.total_score)
+		debugout(colorcodes.event,'kalle wav: ' + userdata[user].currentword.wavfilename);
+		debugout(colorcodes.event,'kalle ada wav: ' + userdata[user].currentword.adawavfilename);
+		if (eventdata.total_score>4) {
+			var from_file=userdata[user].currentword.wavfilename;
+			var to_file=userdata[user].currentword.adawavfilename;
+			fs.renameSync(from_file, to_file); // is this atomic i.e. does it produce full file immediatedly?
+			if (flag_ada_running ==0) {
+				var adaptation = require('./audio_handling/adaptation.js');
+				var process2 = require('child_process');
+			
+				flag_ada_running=1;
+		        	debugout("adaptation running");
+				ls = process2.exec('~/node-v4.4.5-linux-x64/bin/node ./audio_handling/adaptation_dbg.js', function (error, stdout, stderr) {
+			  	//console.log('stdout: ' + stdout);
+				//console.log('stderr: ' + stderr);
+					
+					if (error==null) {
+						debugout("no error in ada"); 
+					}
+					if (error !== null) {
+    						console.log('exec error: ' + error);
+  					}
+					});
+
+ 				ls.on('exit', function (code) {
+   					debugout('Child process exited with exit code '+code);
+					debugout('kekkonen '+ flag_ada_running.toString());
+					flag_ada_running=0;
+ 				});
+			}
+		}
 		send_score_and_clear(user, eventdata);
 	    }
 	    else  {
@@ -687,7 +732,7 @@ function check_last_packet(user) {
 				      userdata[user].audiobinarydata); 			 
 		   }
 	    
-	    var sh_feat_ext = require('./audio_handling/audio_analyser');
+	    /* Kalle commented out the audio analyzer -- var sh_feat_ext = require('./audio_handling/audio_analyser');
 
 	    sh_feat_ext.compute_features( audioconf,
 					  userdata[user].audiobinarydata.slice(userdata[user].currentword.vad.speechstart,  
@@ -696,7 +741,7 @@ function check_last_packet(user) {
 					  user, 
 					  userdata[user].currentword.id,
 					  packetnr,
-					  userdata[user].currentword.vad.speechend);
+					  userdata[user].currentword.vad.speechend);*/
 	    
 	}
 	else {
