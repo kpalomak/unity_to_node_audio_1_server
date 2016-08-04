@@ -93,12 +93,14 @@ function align_with_shell_script(conf, inputbuffer, word_reference, user, word_i
 
     // Make a copy of the wav file (async to save time):
     // #cp $3 "/l/data/siak-server-devel/server/upload_data/from_game/${1}_`date +"%Y-%m-%d-%H-%M-%S"`.wav"
-    var target_dir =  'upload_data/from_game/'+user;
+    var target_dir =  'upload_data/from_game/'+user; // Kalle: added user
     var mkdirp = require('mkdirp');
     mkdirp(target_dir, function(err) { 
     	// path exists unless there was an error
 	});
     var target_wavfile = target_dir + '/' + user +'_'+ word_id +'_'+ word_reference  +'_'+ logging.get_date_time().datetime_for_file + ".wav" ;
+    var adaptation_wavfile = target_dir + '/ada/' + user +'_'+ word_id +'_'+ word_reference  +'_'+ logging.get_date_time().datetime_for_file + ".wav" ;
+    var adaptation_matrix_name = target_dir + '/S'
     print_debug("target_wavfile :" + target_wavfile );
     print_debug("wavinput :" + wavinput );
 
@@ -118,9 +120,9 @@ function align_with_shell_script(conf, inputbuffer, word_reference, user, word_i
 
     var lexicon = conf.recogconf.lexicon;
     var model = conf.recogconf.model
-    
+    var flag_use_adaptation = conf.recogconf.flag_use_adaptation;
     var featext_command = "./audio_handling/shell_script_aligner.sh";
-    var featext_args = [ word_reference, lexicon, wavinput, labelinput, model, segmentoutput ];
+    var featext_args = [ word_reference, lexicon, wavinput, labelinput, model, segmentoutput, flag_use_adaptation, adaptation_matrix_name];
 
     var comm = featext_command;
     featext_args.forEach(function(arg){ comm += " "+arg });
@@ -147,7 +149,8 @@ function align_with_shell_script(conf, inputbuffer, word_reference, user, word_i
 		print_debug('Segmentation done: '+ segmentation);	   
 		
 		process.emit('user_event', user, word_id, 'segmented',{word:word_reference, segmentation:segmentation}); 			
-		
+		process.emit('user_event', user, word_id, 'kalle_dbg',{word:word_reference, segmentation:segmentation, target_wavfile:target_wavfile, adaptation_wavfile:adaptation_wavfile, target_dir: target_dir, adaptation_matrix_name: adaptation_matrix_name});
+ 			
 		fs.unlink(wavinput);
 		fs.unlink(labelinput);
 
@@ -198,3 +201,8 @@ function print_debug(text) {
 
 
 module.exports = { align_with_shell_script: align_with_shell_script };
+
+
+
+
+

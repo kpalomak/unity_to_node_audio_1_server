@@ -209,8 +209,9 @@ process.on('user_event', function(user, wordid, eventname, eventdata) {
 			   'error': null };*/	
 		userdata[user].currentword.wavfilename = eventdata.target_wavfile;
 		userdata[user].currentword.adawavfilename = eventdata.adaptation_wavfile; 
-		process.emit('user_event', user, userdata[user].currentword.id, 'scoring_done',score_event_object);
-
+		userdata[user].currentword.target_dir = eventdata.target_dir; 
+		userdata[user].currentword.adaptation_matrix_name = eventdata.adaptation_matrix_name
+ 		process.emit('user_event', user, userdata[user].currentword.id, 'scoring_done',score_event_object);
 		
 	    }
 
@@ -241,17 +242,22 @@ process.on('user_event', function(user, wordid, eventname, eventdata) {
 		debugout(colorcodes.event,'kalle score: ' + eventdata.total_score)
 		debugout(colorcodes.event,'kalle wav: ' + userdata[user].currentword.wavfilename);
 		debugout(colorcodes.event,'kalle ada wav: ' + userdata[user].currentword.adawavfilename);
+
 		if (eventdata.total_score>4) {
 			var from_file=userdata[user].currentword.wavfilename;
 			var to_file=userdata[user].currentword.adawavfilename;
+			var adaptation_matrix_name=userdata[user].currentword.adaptation_matrix_name;
+			debugout('adptation_matrix_name' + adaptation_matrix_name);
 			fs.renameSync(from_file, to_file); // is this atomic i.e. does it produce full file immediatedly?
 			if (flag_ada_running ==0) {
+				var target_dir=userdata[user].currentword.target_dir;
 				var adaptation = require('./audio_handling/adaptation.js');
 				var process2 = require('child_process');
-			
+				var lexicon = conf.recogconf.lexicon;
+    				var model = conf.recogconf.model
 				flag_ada_running=1;
 		        	debugout("adaptation running");
-				ls = process2.exec('~/node-v4.4.5-linux-x64/bin/node ./audio_handling/adaptation_dbg.js', function (error, stdout, stderr) {
+				ls = process2.exec('~/node-v4.4.5-linux-x64/bin/node ./audio_handling/adaptation_dbg.js ' + target_dir + ' ' + lexicon + ' ' + model + ' ' + adaptation_matrix_name, function (error, stdout, stderr) {
 			  	//console.log('stdout: ' + stdout);
 				//console.log('stderr: ' + stderr);
 					

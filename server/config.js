@@ -34,8 +34,9 @@ module.exports = {
 	'grammar' : 'words.conf',
 	'packet_size' : 2048,
 	'pause_between_packets' : 20,
-	'lexicon' : '/home/backend/models-clean-am/train.lex',
-	'model' : '/home/backend/models/siak_clean_b/siak_clean_b'
+	'lexicon' : '/home/siak/models/clean-am/words.lex',
+	'model' : '/home/siak/models/clean-am/siak_clean_b',
+	'flag_use_adaptation': 1
 	//'model' : '/home/backend/models/mc-am_2016-06-11/siak_mc_a'
     },
     dnnconf : {

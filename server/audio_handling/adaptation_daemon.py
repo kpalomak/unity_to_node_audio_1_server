@@ -4,27 +4,28 @@ import time
 import os
 from get_model_tools import get_word_models_from_lex 
 
-adaptation_check_interval_sec=1
+adaptation_check_interval_sec=5
 recipe_name="test.recipe"
 speaker_id="S1"
 spk_in="default.spkc"
 spk_out=speaker_id + "_10words.spkc"
 iteration=1
 flag=1
-path_audio='../upload_data/from_game/foo'
+path_audio='../upload_data/from_game/foo/ada'
 model_name="/home/siak/models/clean-am/siak_clean_b"
 cfg_name= "/home/siak/models/clean-am/siak_clean_b.cfg"  
 name_lex_in='/home/siak/models/clean-am/words.lex'
 #name_lex_in='/home/siak/models/clean-am/words_utf-8.lex'
 name_lex_out='dummy.lex'
 name_word_list="/home/siak/siak/aalto_recordings/prompts/wordlist_random.txt"
+adaptation_log="adaptation_log.txt"
 
 
 flag_align=0
 flag_recipe=1
 
 words_in_list=143
-utt_in_ada=50
+num_utt_in_ada=5
 
 
 #if flag_recipe:
@@ -69,11 +70,13 @@ def align(recipe_name,model_name,cfg_name):
         os.system(cmd)
 
 def adapt(iteration,model_name,cfg_name,recipe_name,spk_in,spk_out):
+	spk_out_tmp="tmp_" + spk_out
 	for i in range(0,iteration):
-		cmd = "mllr -b " + model_name + " -c " + cfg_name + " -r " + recipe_name + " -S " + spk_in + " --out " + spk_out + " --mllr mllr -i 1"
-		spk_in=spk_out
+		cmd = "mllr -b " + model_name + " -c " + cfg_name + " -r " + recipe_name + " -S " + spk_in + " --out " + spk_out_tmp + " --mllr mllr -i 1"
+		spk_in=spk_out_tmp
 		print cmd
 		os.system(cmd)
+	os.rename(spk_out_tmp,spk_out) # need to have an atomic operation to ensure that file is fully written when it appears in the filesystem
 
 
 def daemon(adaptation_check_interval_sec,player_path):
@@ -81,10 +84,26 @@ def daemon(adaptation_check_interval_sec,player_path):
 		print "kekkonen"
 		player_audio_files_list=os.listdir(path_audio)
 		num_audio_files=len(player_audio_files_list)
-		make_recipe(recipe_name,path_audio,name_word_list,player_audio_files_list,speaker_id,1)
-		align(recipe_name,model_name,cfg_name)
-		make_recipe(recipe_name,path_audio,name_word_list,player_audio_files_list,speaker_id,0)
-		adapt(iteration,model_name,cfg_name,recipe_name,spk_in,spk_out)
+		try:
+		   	with open(adaptation_log) as f:
+				num_audio_files_last_round=f.readline()
+				f.close()
+		except:
+			num_audio_files_last_round=0
+		num_audio_files_last_round = int(num_audio_files_last_round)
+		print (num_audio_files > num_utt_in_ada)
+		print (num_audio_files > num_audio_files_last_round)
+		print num_audio_files, num_audio_files_last_round
+		if (num_audio_files > num_utt_in_ada) and (num_audio_files > num_audio_files_last_round):
+			make_recipe(recipe_name,path_audio,name_word_list,player_audio_files_list,speaker_id,1)
+			align(recipe_name,model_name,cfg_name)
+			make_recipe(recipe_name,path_audio,name_word_list,player_audio_files_list,speaker_id,0)
+			adapt(iteration,model_name,cfg_name,recipe_name,spk_in,spk_out)
+			f_adaptation_log=open(adaptation_log,'w')
+			f_adaptation_log.write(str(num_audio_files))
+			f_adaptation_log.close()
+
+			
 		time.sleep(adaptation_check_interval_sec)
 
 

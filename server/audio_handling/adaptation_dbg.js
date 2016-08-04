@@ -21,7 +21,7 @@ var outputbuffer = Buffer.concat([]);
 
 var wav    = require('wav');
 
-var speaker_id="S1"
+var speaker_id="S"
 
 function debugout(format, msg) {
     if (debug==true) {
@@ -32,24 +32,39 @@ function debugout(format, msg) {
     }
 }
 
+console.log("show args");
+path_speaker=process.argv[2];
 
-var path_speaker = "./upload_data/from_game/foo";
-var path_ada = "./upload_data/from_game/foo/ada";
+//var path_speaker = "./upload_data/from_game/foo";
+//path_speaker = 
+var path_ada = path_speaker + "/ada";
 var phn_out = path_ada + "_phns_out/";
 var phn_in = path_ada + "_phns_in/";
-var recipe_name="test.recipe"
+var recipe_name=path_speaker + "/test.recipe"
 
-var name_lex_in='/home/siak/models/clean-am/words_utf-8.lex'
+//var name_lex_in='/home/siak/models/clean-am/words_utf-8.lex'
 //var name_lex_in='/home/siak/models/clean-am/words.lex'
-var model_name="/home/siak/models/clean-am/siak_clean_b"
-var cfg_name= "/home/siak/models/clean-am/siak_clean_b.cfg"
-var speaker_id="S1";
-var spk_in=path_speaker + "/" + "default.spkc"
-var spk_out=path_speaker + "/" + speaker_id + "_n.spkc"
-var spk_out_tmp=path_speaker + "/" + speaker_id + "_temp.spkc"
+var name_lex_in=process.argv[3];
+var name_lex_utf=path_speaker + "/lex_utf.lex";
+//var model_name="/home/siak/models/clean-am/siak_clean_b"
+var model_name=process.argv[4];
+debugout("I didn't find cfg in configs, I hope I got it right");
+var cfg_name= model_name + ".cfg" //"/home/siak/models/clean-am/siak_clean_b.cfg"
+
+var spk_out=process.argv[5];
+var spk_in=spk_out + "_in.spkc";
+
+
+cmd = "cp audio_handling/default.spkc " + spk_in;
+const execSync = require('child_process').execSync;
+	code = execSync(cmd);
+
+var spk_out_tmp = spk_out + "_tmp.spkc"
+var spk_out=spk_out + ".spkc"; 
 var iteration=1
 
-
+debugout("speaker out");
+debugout(spk_out);
 
 function align(recipe_name,model_name,cfg_name){
 	//var args = ['-i', '2', '--swins=','100000', '-b', model_name, '-c', cfg_name, '-r', recipe_name];
@@ -69,6 +84,7 @@ function mllr(iteration,model_name,cfg_name,recipe_name,spk_in,spk_out){
 		spk_in=spk_out_tmp;
 	
 	}
+	fs.renameSync(spk_out_tmp,spk_out);
 }
 	//os.rename(spk_out_tmp,spk_out) # need to have an atomic operation to ensure that file is fully written when it appears in the filesystem
 
@@ -81,8 +97,11 @@ function parse_audio_file_name(audio_file_name) {
 	return {speaker: speaker, word: word};
 }
 
-function get_word_models_from_lex(lex_name, word) {
-	var lex_list=fs.readFileSync(lex_name);
+function get_word_models_from_lex(lex_name, lex_utf, word) {
+	cmd = "iconv -f ISO8859-15 -t utf-8 " + lex_name + " > " + lex_utf;
+	const execSync = require('child_process').execSync;
+	code = execSync(cmd);
+ 	var lex_list=fs.readFileSync(lex_utf);
 	lex_list=lex_list.toString();
 	lex_list=lex_list.split("\n");
 	//console.log(lex_list)
@@ -103,6 +122,11 @@ function get_word_models_from_lex(lex_name, word) {
 
 function make_recipe(recipe_name,path_ada,flag_align) {
 	audio_files_list=fs.readdirSync(path_ada);
+	// sort files in order of time, which is to use adaptation only for the newest files
+	audio_files_list.sort(function(a, b) {
+               return fs.statSync(path_ada + '/' + a).mtime.getTime() - 
+                      fs.statSync(path_ada + '/' + b).mtime.getTime();
+           });
 	fs.writeFileSync(recipe_name,'');
 	audio_files_list.forEach(function(audio_file){
   		out=parse_audio_file_name(audio_file);
@@ -116,7 +140,7 @@ function make_recipe(recipe_name,path_ada,flag_align) {
 			phn_name_tmp=phn_in + word + ".phn_tmp"
 			phn_name=phn_in + word + ".phn"
 			fs.writeFileSync(phn_name_tmp, "__\n");
-			models=get_word_models_from_lex(name_lex_in,word);
+			models=get_word_models_from_lex(name_lex_in, name_lex_utf,word);
 			models.forEach(function(model) {
 				fs.appendFileSync(phn_name_tmp,model + "\n") ;
 			});

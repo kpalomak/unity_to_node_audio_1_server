@@ -158,7 +158,7 @@ var log_root_mean_square = function (audiobuffer)  {
 
     //rootMeanSquare = Math.max(rootMeanSquare, 1.0);
 
-    return Math.log10(rootMeanSquare)* 20;
+    return Math.log(rootMeanSquare)/Math.log(10) * 20;
     
 }
 
