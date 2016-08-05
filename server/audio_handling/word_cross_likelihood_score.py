@@ -13,7 +13,8 @@ import logging
 import numpy as np
 target_word = sys.argv[1]
 wav_name = sys.argv[2]
-log=sys.argv[3]
+speaker_path = sys.argv[3]
+log=sys.argv[4]
 
 print log
 n_anchors=5;
@@ -28,6 +29,9 @@ lex_name='/home/siak/models/clean-am/words_utf-8.lex'
 #model_name='/home/siak/models/wsjcam_orig/wsj_284_ml_gain4000_occ400_17.11.2010_25/wsj_284_ml_gain4000_occ400_17.11.2010_25'
 model_dir='/home/siak/models/clean-am/'
 cfg_name='/home/siak/models/clean-am/siak_clean_b.cfg'
+path_word_cross_likelihoods = speaker_path + "word_cross_likelihoods/"
+num_history=100
+
 sys.stdout.close()
 
 
@@ -114,6 +118,9 @@ rel_err_norm_cumu=0
 likelihood_diff_cumu=0
 test_wav_old=''
 
+def sorted_ls(path):
+    mtime = lambda f: os.stat(os.path.join(path, f)).st_mtime
+    return list(sorted(os.listdir(path), key=mtime))
 
 	
 
@@ -142,7 +149,7 @@ for word_name in word_names:
 	audio_word_name=target_word
 	audio_word_name=audio_word_name.strip()
 	model_name=model_dir + '/' + word_name + '/' + word_name
-	cmd_test = './shell_script_aligner_quick.sh ' + word_name + ' ' + lex_name + ' ' + wav_name +  ' label_test_quick ' + model_name + ' ' + word_name + '_quick.phn ' + cfg_name + ' >& tmp_quick.txt'
+	cmd_test = './audio_handling/shell_script_aligner_quick.sh ' + word_name + ' ' + lex_name + ' ' + wav_name +  ' label_test_quick ' + model_name + ' ' + word_name + '_quick.phn ' + cfg_name + ' >& tmp_quick.txt'
 	sys.stderr.write(cmd_test + '\n')
 	os.system(cmd_test)
 	os.system('cat tmp_quick.txt')
@@ -196,8 +203,76 @@ for line in line_vec:
 med=np.median(word_mat)
 mean=word_mat.mean()
 
-f_wcl=open(target_word + "_word_cross_likelihoods.txt","a")
+f_wcl=open(path_word_cross_likelihoods + target_word + "_word_cross_likelihoods.txt","a")
 write_str=str(mean) + "," + str(likelihood_target_word) + "\n"
 f_wcl.write(write_str)
 f_wcl.close()
-sys.stderr.write(write_str)
+
+
+
+list_of_files=sorted_ls(path_word_cross_likelihoods)
+
+num_files=len(list_of_files)
+sys.stderr.write(str(num_files) + "\n")
+
+if num_files < num_history:
+	num_history=num_files
+	
+scores=np.array(0)
+scores_neg=np.array(0)
+for i in range(num_files-num_history,num_files):
+	with open(path_word_cross_likelihoods + list_of_files[i]) as f_files:
+		for line in f_files:
+			line=line.strip()
+			line_split = line.split(',')
+			diff=float(line_split[1]) - float(line_split[0])
+			if diff>0:
+				scores=np.append(scores,diff)
+			else:
+				scores_neg=np.append(scores_neg,diff)
+
+			#sys.stderr.write(str(scores) + '\n')
+			#sys.stderr.write(str(line_split)+ '\n' + str(diff) + '\n')
+	#sys.stderr.write(list_of_files[i] + '\n')	
+	
+
+#scores_np=np.array(scores)
+
+scores_0_perc = np.percentile(scores,0)
+scores_20_perc = np.percentile(scores,20)
+scores_60_perc = np.percentile(scores,60)
+
+scores_neg_0_perc = np.percentile(scores_neg,0)
+scores_neg_20_perc = np.percentile(scores_neg,20)
+scores_neg_60_perc = np.percentile(scores_neg,60)
+
+scores_min=min(scores)
+scores_neg_min=min(scores_neg)
+
+
+#sys.stderr.write("dbg: pos: " + str(scores) + '\n' + "dbg: neg: " + str(scores_neg) + "\n")
+
+sys.stderr.write(str(scores_0_perc) + " " + str(scores_20_perc) + " " + str(scores_60_perc) + " " + " " + str(scores_min) + '\n')
+sys.stderr.write(str(scores_neg_0_perc) + " " + str(scores_neg_20_perc) + " " + str(scores_neg_60_perc) + " " + " " + str(scores_neg_min) + '\n')
+sys.stderr.write(write_str + " " + str(likelihood_target_word-mean) + "\n")
+
+likelihood_diff=likelihood_target_word-mean
+
+if likelihood_diff > 0:
+	if likelihood_diff > scores_60_perc:
+		scores_out=5
+	elif likelihood_diff > scores_20_perc:
+		scores_out=4
+	elif likelihood_diff > scores_0_perc:
+		scores_out=3
+else:
+    	if likelihood_diff > scores_neg_60_perc:
+		scores_out=2
+  	elif likelihood_diff > scores_neg_20_perc:
+		scores_out=1
+	else: 
+		scores_out=0
+
+sys.stderr.write('scores: ' + str(scores_out) + '\n') 
+ 
+

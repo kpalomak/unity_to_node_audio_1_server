@@ -211,6 +211,27 @@ process.on('user_event', function(user, wordid, eventname, eventdata) {
 		userdata[user].currentword.adawavfilename = eventdata.adaptation_wavfile; 
 		userdata[user].currentword.target_dir = eventdata.target_dir; 
 		userdata[user].currentword.adaptation_matrix_name = eventdata.adaptation_matrix_name
+		cmd="./audio_handling/word_cross_likelihood_score.py " + eventdata.word + " " + eventdata.target_wavfile + " " + eventdata.target_dir + " log_kekkonen.txt";
+		var process2 = require("child_process");
+		ls = process2.exec(cmd, function (error, stdout, stderr) {
+			  	//console.log('stdout: ' + stdout);
+				//console.log('stderr: ' + stderr);
+					
+					if (error==null) {
+						debugout("no error in scoring"); 
+					}
+					if (error !== null) {
+    						console.log('exec error: ' + error);
+  					}
+					});
+
+ 				ls.on('exit', function (code) {
+   					debugout('Scoring process exited with exit code '+code);
+					debugout('kekkonen '+ flag_ada_running.toString());
+					flag_ada_running=0;
+ 				});
+
+		debugout("word_cross_likelihood scoring command: " + cmd)
  		process.emit('user_event', user, userdata[user].currentword.id, 'scoring_done',score_event_object);
 		
 	    }
