@@ -211,9 +211,10 @@ process.on('user_event', function(user, wordid, eventname, eventdata) {
 		userdata[user].currentword.adawavfilename = eventdata.adaptation_wavfile; 
 		userdata[user].currentword.target_dir = eventdata.target_dir; 
 		userdata[user].currentword.adaptation_matrix_name = eventdata.adaptation_matrix_name
-		cmd="./audio_handling/word_cross_likelihood_score.py " + eventdata.word + " " + eventdata.target_wavfile + " " + eventdata.target_dir + " log_kekkonen.txt";
+		cmd="./audio_handling/word_cross_likelihood_score.py " + eventdata.word + " " + eventdata.target_wavfile + " " + eventdata.target_dir + " " + eventdata.adaptation_matrix_name + " " + conf.recogconf.flag_use_adaptation + " " + conf.recogconf.lexicon;
+		debugout("word_cross_likelihood scoring command: " + cmd)	
 		var process2 = require("child_process");
-		ls = process2.exec(cmd, function (error, stdout, stderr) {
+		ls = process2.execSync(cmd);/*, function (error, stdout, stderr) {
 			  	//console.log('stdout: ' + stdout);
 				//console.log('stderr: ' + stderr);
 					
@@ -229,9 +230,9 @@ process.on('user_event', function(user, wordid, eventname, eventdata) {
    					debugout('Scoring process exited with exit code '+code);
 					debugout('kekkonen '+ flag_ada_running.toString());
 					flag_ada_running=0;
- 				});
+ 				});*/
 
-		debugout("word_cross_likelihood scoring command: " + cmd)
+
  		process.emit('user_event', user, userdata[user].currentword.id, 'scoring_done',score_event_object);
 		
 	    }
@@ -267,9 +268,12 @@ process.on('user_event', function(user, wordid, eventname, eventdata) {
 		if (eventdata.total_score>4) {
 			var from_file=userdata[user].currentword.wavfilename;
 			var to_file=userdata[user].currentword.adawavfilename;
+			var temp_file=userdata[user].currentword.adawavfilename + "temp";
 			var adaptation_matrix_name=userdata[user].currentword.adaptation_matrix_name;
 			debugout('adptation_matrix_name' + adaptation_matrix_name);
-			fs.renameSync(from_file, to_file); // is this atomic i.e. does it produce full file immediatedly?
+			fsSync = require("fs-sync");
+			fsSync.copy(from_file, temp_file)
+			fs.renameSync(temp_file, to_file); // is this atomic i.e. does it produce full file immediatedly?
 			if (flag_ada_running ==0) {
 				var target_dir=userdata[user].currentword.target_dir;
 				var adaptation = require('./audio_handling/adaptation.js');
