@@ -9,7 +9,7 @@
 import sys
 import os
 import logging
-from cross_likelihood_tools import collect_audio_file_names, compute_word_likelihood, compute_background_audio_model_likelihood, write_cross_likelihood_log, collect_scores_from_history, compute_score
+from cross_likelihood_tools import collect_audio_file_names, compute_cross_likelihood, compute_background_audio_model_likelihood, write_cross_likelihood_log, collect_scores_from_history, compute_score, read_cross_likelihood_log
 
 target_word = sys.argv[1]
 wav_name = sys.argv[2]
@@ -22,25 +22,30 @@ word_list_name='/home/siak/siak/aalto_recordings/prompts/wordlist_random.txt'
 lex_name=sys.argv[6]
 model_dir='/home/siak/models/clean-am/'
 cfg_name='/home/siak/models/clean-am/siak_clean_b.cfg'
-path_audio_cross_likelihoods = speaker_path + "/word_audio_likelihoods/"
+path_audio_cross_likelihoods = speaker_path + "/audio_cross_likelihoods/"
+path_audio_background_likelihoods = speaker_path + "/audio_background_likelihoods/"
 num_history=100
-flag_verbose = 2
+flag_verbose = 1
 
 wav_names=collect_audio_file_names(adaptation_path, target_word, n_anchors, flag_verbose)
 
-likelihood_target_word=compute_word_likelihood(target_word, lex_name, wav_name, flag_use_adaptation, adaptation_matrix_name, cfg_name, model_dir, speaker_path, flag_verbose)
+likelihood_target_word=compute_cross_likelihood(target_word, lex_name, wav_name, flag_use_adaptation, adaptation_matrix_name, cfg_name, model_dir, speaker_path, flag_verbose)
 
 print wav_names
 
-likelihood_background_model=compute_background_audio_model_likelihood(wav_names, lex_name, target_word, flag_use_adaptation, adaptation_matrix_name, cfg_name, model_dir, speaker_path, flag_verbose)
+#likelihood_background_model=compute_background_audio_model_likelihood(wav_names, lex_name, target_word, flag_use_adaptation, adaptation_matrix_name, cfg_name, model_dir, speaker_path, flag_verbose)
+[flag_file_found, likelihood_background_model, dummy]=read_cross_likelihood_log(path_audio_background_likelihoods, target_word, flag_use_adaptation)
+
+if not(flag_file_found):
+	cmd="./audio_handling/audio_cross_likelihood_background.py " + target_word + " " + speaker_path + " " + adaptation_path + " 0 " + lex_name
+	os.system(cmd);
+	[flag_file_found, likelihood_background_model, dummy]=read_cross_likelihood_log(path_audio_background_likelihoods, target_word, flag_use_adaptation)
 
 write_cross_likelihood_log(path_audio_cross_likelihoods, target_word, likelihood_background_model, likelihood_target_word, flag_use_adaptation)
-
 [scores,scores_neg]=collect_scores_from_history(path_audio_cross_likelihoods,num_history)
 
-print scores, scores_neg
 
-score=compute_score(scores, scores_neg, likelihood_target_word, likelihood_background_model, flag_verbose)
+score=compute_score(scores, scores_neg, likelihood_target_word, float(likelihood_background_model), flag_verbose)
 
 if flag_verbose > 0: 
 	sys.stderr.write('scores: ' + str(score) + '\n') 	

@@ -20,7 +20,6 @@ def sorted_ls(path):
 
 def parse_audio_file_name(name_audio_file):
         name_audio_file=name_audio_file.split('_')
-        #print "dbg",name_audio_file
         speaker=name_audio_file[0]
         unknown=name_audio_file[1]
         word=name_audio_file[2]
@@ -66,7 +65,7 @@ def get_likelihood(f_name):
 
 
 
-def compute_word_likelihood(word_name, lex_name, wav_name, flag_use_adaptation, adaptation_matrix_name, cfg_name, model_dir, speaker_path, flag_verbose):
+def compute_cross_likelihood(word_name, lex_name, wav_name, flag_use_adaptation, adaptation_matrix_name, cfg_name, model_dir, speaker_path, flag_verbose):
 	# define temp-files required for running aligner, if disk writing becomes too intense could
 	# construct a ram disk in the virtual machine
 	# http://www.hecticgeek.com/2015/12/create-ram-disk-ubuntu-linux/
@@ -84,14 +83,14 @@ def compute_word_likelihood(word_name, lex_name, wav_name, flag_use_adaptation, 
 	return likelihood
 
 
-def compute_background_model_likelihood(word_names, lex_name, wav_name, flag_use_adaptation, adaptation_matrix_name, cfg_name, model_dir, speaker_path, flag_verbose):
+def compute_background_word_model_likelihood(word_names, lex_name, wav_name, flag_use_adaptation, adaptation_matrix_name, cfg_name, model_dir, speaker_path, flag_verbose):
 	word_likelihoods=[]	
 	for word_name in word_names:
 		word_name=word_name.strip()
 		if flag_verbose >=2:
 			sys.stderr.write("dbg " + word_name + "\n")
 		cnt_list=0
-		likelihood=compute_word_likelihood(word_name, lex_name, wav_name, flag_use_adaptation, adaptation_matrix_name, cfg_name, model_dir, speaker_path, flag_verbose)
+		likelihood=compute_cross_likelihood(word_name, lex_name, wav_name, flag_use_adaptation, adaptation_matrix_name, cfg_name, model_dir, speaker_path, flag_verbose)
 		word_likelihoods.append(likelihood)
 		if flag_verbose >=2:
 			sys.stderr.write(word_name + ' ' +  str(likelihood) + ' ' + str(wav_name) + '\n')			
@@ -107,7 +106,7 @@ def compute_background_audio_model_likelihood(wav_names, lex_name, target_word_n
 		if flag_verbose >=2:
 			sys.stderr.write("dbg " + wav_name + "\n")
 		cnt_list=0
-		likelihood=compute_word_likelihood(target_word_name, lex_name, speaker_path + '/ada/' + wav_name, flag_use_adaptation, adaptation_matrix_name, cfg_name, model_dir, speaker_path, flag_verbose)
+		likelihood=compute_cross_likelihood(target_word_name, lex_name, speaker_path + '/ada/' + wav_name, flag_use_adaptation, adaptation_matrix_name, cfg_name, model_dir, speaker_path, flag_verbose)
 		wav_likelihoods.append(likelihood)
 		if flag_verbose >=2:
 			sys.stderr.write(wav_name + ' ' +  str(likelihood) + ' ' + str(wav_name) + '\n')			
@@ -126,6 +125,27 @@ def write_cross_likelihood_log(path_word_cross_likelihoods, target_word, likelih
 	write_str=str(likelihood_background_model) + "," + str(likelihood_target_word) + "\n"
 	f_wcl.write(write_str)
 	f_wcl.close()	
+
+
+def read_cross_likelihood_log(path_word_cross_likelihoods, target_word, flag_use_adaptation):
+	if flag_use_adaptation==1:
+		ada_text="ada";
+	else:
+		ada_text=""
+	try:
+		f_wcl=open(path_word_cross_likelihoods + target_word + ada_text + "_word_cross_likelihoods.txt","r")
+		line=f_wcl.read()
+		line_split=line.split(',')
+		likelihood_background_model=line_split[0]
+		likelihood_target_word=line_split[1]
+		f_wcl.close()
+		flag_file_found=1
+	except:
+		likelihood_background_model=-1000
+		likelihood_target_word=-1000
+		flag_file_found=0
+
+	return flag_file_found, likelihood_background_model, likelihood_target_word
 
 def collect_scores_from_history(path_word_cross_likelihoods,num_history):
 	# reads through the history of scores and differintiates them to either negative or positive
@@ -161,12 +181,21 @@ def compute_score(scores, scores_neg, likelihood_target_word, likelihood_backgro
 	scores_neg_20_perc = numpy.percentile(scores_neg,20)
 	scores_neg_60_perc = numpy.percentile(scores_neg,60)
 	
-	scores_min=min(scores)
-	scores_neg_min=min(scores_neg)
+	if len(numpy.atleast_1d(scores))>1:
+		scores_min=min(scores)
+	else:
+		scores_min=scores
+
+	if len(numpy.atleast_1d(scores_neg))>1:
+		scores_neg_min=min(scores_neg)
+	else:
+		scores_neg_min=scores_neg
+
 	if flag_verbose >= 2:
 		sys.stderr.write(str(scores_0_perc) + " " + str(scores_20_perc) + " " + str(scores_60_perc) + " " + " " + str(scores_min) + '\n')
 		sys.stderr.write(str(scores_neg_0_perc) + " " + str(scores_neg_20_perc) + " " + str(scores_neg_60_perc) + " " + " " + str(scores_neg_min) + '\n')
 		sys.stderr.write("difference of target and background " + str(likelihood_target_word-likelihood_background_model) + "\n")
+
 
 	likelihood_diff=likelihood_target_word-likelihood_background_model
 	

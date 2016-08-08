@@ -9,7 +9,7 @@
 import sys
 import os
 import logging
-from cross_likelihood_tools import collect_word_names, compute_word_likelihood, compute_background_model_likelihood, write_cross_likelihood_log, collect_scores_from_history, compute_score
+from cross_likelihood_tools import collect_word_names, compute_cross_likelihood, compute_background_word_model_likelihood, write_cross_likelihood_log, collect_scores_from_history, compute_score
 
 target_word = sys.argv[1]
 wav_name = sys.argv[2]
@@ -27,9 +27,9 @@ flag_verbose = 2
 
 word_names=collect_word_names(word_list_name,target_word,n_anchors)
 
-likelihood_target_word=compute_word_likelihood(target_word, lex_name, wav_name, flag_use_adaptation, adaptation_matrix_name, cfg_name, model_dir, speaker_path, flag_verbose)
+likelihood_target_word=compute_cross_likelihood(target_word, lex_name, wav_name, flag_use_adaptation, adaptation_matrix_name, cfg_name, model_dir, speaker_path, flag_verbose)
 
-likelihood_background_model=compute_background_model_likelihood(word_names, lex_name, wav_name, flag_use_adaptation, adaptation_matrix_name, cfg_name, model_dir, speaker_path, flag_verbose)
+likelihood_background_model=compute_background_word_model_likelihood(word_names, lex_name, wav_name, flag_use_adaptation, adaptation_matrix_name, cfg_name, model_dir, speaker_path, flag_verbose)
 
 write_cross_likelihood_log(path_word_cross_likelihoods, target_word, likelihood_background_model, likelihood_target_word, flag_use_adaptation)
 
