@@ -15,6 +15,7 @@ target_word = sys.argv[1]
 wav_name = sys.argv[2]
 speaker_path = sys.argv[3]
 adaptation_matrix_name = sys.argv[4]
+print adaptation_matrix_name
 flag_use_adaptation = sys.argv[5]
 n_anchors=5; # number of random anchor words
 word_list_name='/home/siak/siak/aalto_recordings/prompts/wordlist_random.txt'
@@ -23,7 +24,7 @@ model_dir='/home/siak/models/clean-am/'
 cfg_name='/home/siak/models/clean-am/siak_clean_b.cfg'
 path_word_cross_likelihoods = speaker_path + "/word_cross_likelihoods/"
 num_history=100
-flag_verbose = 2
+flag_verbose = 0
 
 word_names=collect_word_names(word_list_name,target_word,n_anchors)
 
@@ -33,7 +34,7 @@ likelihood_background_model=compute_background_word_model_likelihood(word_names,
 
 write_cross_likelihood_log(path_word_cross_likelihoods, target_word, likelihood_background_model, likelihood_target_word, flag_use_adaptation)
 
-[scores,scores_neg]=collect_scores_from_history(path_word_cross_likelihoods,num_history)
+[scores,scores_neg]=collect_scores_from_history(path_word_cross_likelihoods,num_history,flag_verbose)
 
 score=compute_score(scores, scores_neg, likelihood_target_word, likelihood_background_model, flag_verbose)
 
@@ -42,4 +43,7 @@ if flag_verbose > 0:
 	sys.stderr.write('likelihood_background_model: '  + str(likelihood_background_model) + '\n')
 	sys.stderr.write('likelihood_target_word: '  + str(likelihood_target_word) + '\n')
 
+f_out=open(speaker_path + "/score_out.txt" , 'w')
+f_out.write(str(score))
+f_out.close()
 

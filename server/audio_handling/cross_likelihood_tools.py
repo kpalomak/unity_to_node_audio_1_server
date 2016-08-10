@@ -120,34 +120,60 @@ def write_cross_likelihood_log(path_word_cross_likelihoods, target_word, likelih
 		ada_text="ada";
 	else:
 		ada_text=""
+	if (likelihood_background_model > -1000) and (likelihood_target_word > -1000):
+		if not(os.path.exists(path_word_cross_likelihoods)):
+			os.mkdir(path_word_cross_likelihoods);
+		f_wcl=open(path_word_cross_likelihoods + target_word + ada_text + "_word_cross_likelihoods.txt","a")
 
-	f_wcl=open(path_word_cross_likelihoods + target_word + ada_text + "_word_cross_likelihoods.txt","a")
-	write_str=str(likelihood_background_model) + "," + str(likelihood_target_word) + "\n"
-	f_wcl.write(write_str)
-	f_wcl.close()	
+		write_str=str(likelihood_background_model) + "," + str(likelihood_target_word) + "\n"
+		f_wcl.write(write_str)
+		f_wcl.close()	
 
 
-def read_cross_likelihood_log(path_word_cross_likelihoods, target_word, flag_use_adaptation):
+def read_cross_likelihood_log(path_word_cross_likelihoods, target_word, flag_use_adaptation, flag_verbose):
 	if flag_use_adaptation==1:
 		ada_text="ada";
 	else:
 		ada_text=""
+	likelihood_background_model_arr=numpy.array([])
+	likelihood_target_word_arr=numpy.array([])
+	name_read=path_word_cross_likelihoods + target_word + ada_text + "_word_cross_likelihoods.txt"
 	try:
-		f_wcl=open(path_word_cross_likelihoods + target_word + ada_text + "_word_cross_likelihoods.txt","r")
-		line=f_wcl.read()
-		line_split=line.split(',')
-		likelihood_background_model=line_split[0]
-		likelihood_target_word=line_split[1]
-		f_wcl.close()
-		flag_file_found=1
+		f_wcl=open(name_read,"r")
 	except:
 		likelihood_background_model=-1000
 		likelihood_target_word=-1000
 		flag_file_found=0
+		sys.stderr.write("problem in reading " + name_read +"\n")
+		return flag_file_found, likelihood_background_model, likelihood_target_word
+	
+	#if 1:
+	#sys.stderr.write("trying to read " + name_read + '\n')
+	if flag_verbose >=1: 
+		sys.stderr.write(name_read + "\n")
 
+	for line in f_wcl:
+		line_split=line.split(',')
+		if "nan" not in line_split[0]:
+			sys.stderr.write('no nan found\n')
+			likelihood_background_model_arr=numpy.append(likelihood_background_model_arr,float(line_split[0]))
+		if "nan" not in line_split[1]: 
+			likelihood_target_word_arr=numpy.append(likelihood_background_model_arr,float(line_split[1]))
+			
+	f_wcl.close()
+	likelihood_background_model=numpy.mean(likelihood_background_model_arr)
+	likelihood_target_word=numpy.mean(likelihood_target_word_arr)
+	flag_file_found=1
+		
 	return flag_file_found, likelihood_background_model, likelihood_target_word
 
-def collect_scores_from_history(path_word_cross_likelihoods,num_history):
+def reject_outliers(data, m):
+    	if len(numpy.atleast_1d(data)) > 1:
+	    	return data[abs(data - numpy.mean(data)) < m * numpy.std(data)]
+    	else:
+		return data
+
+def collect_scores_from_history(path_word_cross_likelihoods,num_history,flag_verbose):
 	# reads through the history of scores and differintiates them to either negative or positive
 	# negative score means that the target word likelihood was less or equal than the backgroung likelihood
 	# positive score means that the target word likelihood was greater than the background likelihood  	
@@ -160,40 +186,58 @@ def collect_scores_from_history(path_word_cross_likelihoods,num_history):
 	scores=numpy.array(0)
 	scores_neg=numpy.array(0)
 	for i in range(num_files-num_history,num_files):
-		with open(path_word_cross_likelihoods + list_of_files[i]) as f_files:
-			for line in f_files:
-				line=line.strip()
-				line_split = line.split(',')
-				diff=float(line_split[1]) - float(line_split[0])
-				if diff>0:
-					scores=numpy.append(scores,diff)
-				else:
-					scores_neg=numpy.append(scores_neg,diff)
+		name_in_file = path_word_cross_likelihoods + list_of_files[i]
+		try:
+			with open(name_in_file) as f_files:
+				for line in f_files:
+					line=line.strip()
+					if "nan" not in line:
+						line_split = line.split(',')
+						diff=float(line_split[1]) - float(line_split[0])
+						if diff>0:
+							scores=numpy.append(scores,diff)
+						else:
+							scores_neg=numpy.append(scores_neg,diff)
+		except:
+			sys.stderr.write(name_in_file + " not found\n")
+
+	if flag_verbose>=2:
+		sys.stderr.write('list of_files' + str(list_of_files) + "\n")
+		sys.stderr.write('scores: ' + str(len(numpy.atleast_1d(scores))) + "\n")
+	scores = reject_outliers(scores,2)
+	if flag_verbose>=2:
+		sys.stderr.write('scores: ' + str(len(numpy.atleast_1d(scores))) + "\n")
+	scores_neg = reject_outliers(scores_neg,2)
 
 	return scores, scores_neg
 
-def compute_score(scores, scores_neg, likelihood_target_word, likelihood_background_model, flag_verbose):	
-	scores_0_perc = numpy.percentile(scores,0)
-	scores_20_perc = numpy.percentile(scores,20)
-	scores_60_perc = numpy.percentile(scores,60)
-	
-	scores_neg_0_perc = numpy.percentile(scores_neg,0)
-	scores_neg_20_perc = numpy.percentile(scores_neg,20)
-	scores_neg_60_perc = numpy.percentile(scores_neg,60)
+def compute_score(scores, scores_neg, likelihood_target_word, likelihood_background_model, flag_verbose):		
 	
 	if len(numpy.atleast_1d(scores))>1:
+		scores_0_perc = numpy.percentile(scores,0)
+		scores_20_perc = numpy.percentile(scores,20)
+		scores_60_perc = numpy.percentile(scores,60)
 		scores_min=min(scores)
 	else:
+		scores_0_perc=0
+		scores_20_perc=0
+		scores_60_perc=0
 		scores_min=scores
 
 	if len(numpy.atleast_1d(scores_neg))>1:
+		scores_neg_0_perc = numpy.percentile(scores_neg,0)
+		scores_neg_20_perc = numpy.percentile(scores_neg,20)
+		scores_neg_60_perc = numpy.percentile(scores_neg,60)
 		scores_neg_min=min(scores_neg)
 	else:
+		scores_neg_0_perc=0
+		scores_neg_20_perc=0
+		scores_neg_60_perc=0
 		scores_neg_min=scores_neg
 
 	if flag_verbose >= 2:
-		sys.stderr.write(str(scores_0_perc) + " " + str(scores_20_perc) + " " + str(scores_60_perc) + " " + " " + str(scores_min) + '\n')
-		sys.stderr.write(str(scores_neg_0_perc) + " " + str(scores_neg_20_perc) + " " + str(scores_neg_60_perc) + " " + " " + str(scores_neg_min) + '\n')
+		sys.stderr.write("scores_0_perc " + str(scores_0_perc) + " scores_20_perc " + str(scores_20_perc) + " scores_60_perc " + str(scores_60_perc) + " scores_min " + str(scores_min) + '\n')
+		sys.stderr.write("scores_neg_0_perc " + str(scores_neg_0_perc) + " scores_neg_20_perc " + str(scores_neg_20_perc) + " scores_neg_60_perc " + str(scores_neg_60_perc) + " scores_neg_min " + str(scores_neg_min) + '\n')
 		sys.stderr.write("difference of target and background " + str(likelihood_target_word-likelihood_background_model) + "\n")
 
 
@@ -204,7 +248,7 @@ def compute_score(scores, scores_neg, likelihood_target_word, likelihood_backgro
 			scores_out=5
 		elif likelihood_diff > scores_20_perc:
 			scores_out=4
-		elif likelihood_diff > scores_0_perc:
+		else: # likelihood_diff > scores_0_perc:
 			scores_out=3
 	else:
     		if likelihood_diff > scores_neg_60_perc:
@@ -213,5 +257,6 @@ def compute_score(scores, scores_neg, likelihood_target_word, likelihood_backgro
 			scores_out=1
 		else: 
 			scores_out=0
+
 	return scores_out
 

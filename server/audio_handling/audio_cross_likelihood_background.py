@@ -23,27 +23,14 @@ model_dir='/home/siak/models/clean-am/'
 cfg_name='/home/siak/models/clean-am/siak_clean_b.cfg'
 path_audio_background_likelihoods = speaker_path + "/audio_background_likelihoods/"
 num_history=100
-flag_verbose = 1
+flag_verbose = 2
+
+if flag_verbose >0:
+	sys.stderr.write("Running background model\n")
 
 wav_names=collect_audio_file_names(adaptation_path, target_word, n_anchors, flag_verbose)
-
-#likelihood_target_word=compute_word_likelihood(target_word, lex_name, wav_name, flag_use_adaptation, adaptation_matrix_name, cfg_name, model_dir, speaker_path, flag_verbose)
-
-print wav_names
 
 likelihood_background_model=compute_background_audio_model_likelihood(wav_names, lex_name, target_word, flag_use_adaptation, adaptation_matrix_name, cfg_name, model_dir, speaker_path, flag_verbose)
 
 write_cross_likelihood_log(path_audio_background_likelihoods, target_word, likelihood_background_model, 0, flag_use_adaptation)
-
-#[scores,scores_neg]=collect_scores_from_history(path_audio_cross_likelihoods,num_history)
-
-#print scores, scores_neg
-
-#score=compute_score(scores, scores_neg, likelihood_target_word, likelihood_background_model, flag_verbose)
-
-#if flag_verbose > 0: 
-#	sys.stderr.write('scores: ' + str(score) + '\n') 	
-#	sys.stderr.write('likelihood_background_model: '  + str(likelihood_background_model) + '\n')
-#	sys.stderr.write('likelihood_target_word: '  + str(likelihood_target_word) + '\n')
-
 
