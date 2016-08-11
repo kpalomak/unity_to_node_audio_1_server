@@ -17,7 +17,7 @@ speaker_path = sys.argv[3]
 adaptation_path = speaker_path + '/ada'
 adaptation_matrix_name = sys.argv[4]
 flag_use_adaptation = sys.argv[5]
-n_anchors=10; # number of random anchor words
+n_anchors=20; # number of random anchor words
 word_list_name='/home/siak/siak/aalto_recordings/prompts/wordlist_random.txt'
 lex_name=sys.argv[6]
 model_dir='/home/siak/models/clean-am/'
@@ -25,18 +25,25 @@ cfg_name='/home/siak/models/clean-am/siak_clean_b.cfg'
 path_audio_cross_likelihoods = speaker_path + "/audio_cross_likelihoods/"
 path_audio_background_likelihoods = speaker_path + "/audio_background_likelihoods/"
 num_history=100
-flag_verbose = 2
+flag_verbose = 1
 flag_use_new_background=1
 wav_names=collect_audio_file_names(adaptation_path, target_word, n_anchors, flag_verbose)
 
-likelihood_target_word=compute_cross_likelihood(target_word, lex_name, wav_name, flag_use_adaptation, adaptation_matrix_name, cfg_name, model_dir, speaker_path, flag_verbose)
+if not wav_names:
+	sys.stderr.write('empyt wavlist\n')
+	exit(0)
 
+sys.stderr.write("target_word: " + str(target_word) + " wav_name: " + str(wav_name) + " ")
+likelihood_target_word=compute_cross_likelihood(target_word, lex_name, wav_name, flag_use_adaptation, adaptation_matrix_name, cfg_name, model_dir, speaker_path, flag_verbose)
+sys.stderr.write(str(likelihood_target_word) + "\n")
 #print wav_names
 
 if flag_use_new_background:
 	likelihood_background_model=compute_background_audio_model_likelihood(wav_names, lex_name, target_word, flag_use_adaptation, adaptation_matrix_name, cfg_name, model_dir, speaker_path, flag_verbose)
 	#[flag_file_found, likelihood_background_model, dummy]=read_cross_likelihood_log(path_audio_background_likelihoods, target_word, flag_use_adaptation,flag_verbose)
 	flag_file_found=1
+
+sys.stderr.write("likelihood background model: " + str(likelihood_background_model) + "\n")
 
 if not(flag_file_found):
 	cmd="./audio_handling/audio_cross_likelihood_background.py " + target_word + " " + speaker_path + " " + adaptation_path + " 0 " + lex_name
@@ -52,6 +59,9 @@ if flag_file_found:
 		sys.stderr.write("scores_neg main func: " + str(scores_neg) + '\n')
 
 	score=compute_score(scores, scores_neg, likelihood_target_word, float(likelihood_background_model), flag_verbose)
+	f_out=open(speaker_path + "/score_out.txt" , 'w')
+	f_out.write(str(score))
+	f_out.close()
 
 	if flag_verbose > 0: 
 		sys.stderr.write('scores in main: ' + str(score) + '\n') 	

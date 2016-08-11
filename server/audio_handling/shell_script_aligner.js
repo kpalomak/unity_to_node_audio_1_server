@@ -121,8 +121,9 @@ function align_with_shell_script(conf, inputbuffer, word_reference, user, word_i
     var lexicon = conf.recogconf.lexicon;
     var model = conf.recogconf.model
     var flag_use_adaptation = conf.recogconf.flag_use_adaptation;
-    var featext_command = "./audio_handling/shell_script_aligner.sh";
-    var featext_args = [ word_reference, lexicon, wavinput, labelinput, model, segmentoutput, flag_use_adaptation, adaptation_matrix_name];
+    var featext_command = "./audio_handling/shell_script_aligner_quick.sh";
+    var model_word = "/home/siak/models/clean-am/" + word_reference + word_reference;
+    var featext_args = [ word_reference, lexicon, wavinput, labelinput, model_word, segmentoutput, flag_use_adaptation, adaptation_matrix_name, model+".cfg"];
 
     var comm = featext_command;
     featext_args.forEach(function(arg){ comm += " "+arg });

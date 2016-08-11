@@ -214,25 +214,12 @@ process.on('user_event', function(user, wordid, eventname, eventdata) {
 		cmd="./audio_handling/word_cross_likelihood_score.py " + eventdata.word + " " + eventdata.target_wavfile + " " + eventdata.target_dir + " " + eventdata.adaptation_matrix_name + " " + conf.recogconf.flag_use_adaptation + " " + conf.recogconf.lexicon;
 		debugout("word_cross_likelihood scoring command: " + cmd)	
 		var process2 = require("child_process");
-		ls = process2.execSync(cmd);/*, function (error, stdout, stderr) {
-			  	//console.log('stdout: ' + stdout);
-				//console.log('stderr: ' + stderr);
-					
-					if (error==null) {
-						debugout("no error in scoring"); 
-					}
-					if (error !== null) {
-    						console.log('exec error: ' + error);
-  					}
-					});
+		ls = process2.execSync(cmd);
 
- 				ls.on('exit', function (code) {
-   					debugout('Scoring process exited with exit code '+code);
-					debugout('kekkonen '+ flag_ada_running.toString());
-					flag_ada_running=0;
- 				});*/
-
-
+		cmd ="./audio_handling/audio_cross_likelihood_score.py " + eventdata.word + " " + eventdata.target_wavfile + " " + eventdata.target_dir + " " + eventdata.adaptation_matrix_name + " " + conf.recogconf.flag_use_adaptation + " " + conf.recogconf.lexicon;
+		debugout("audio_cross_likelihood scoring command: " + cmd)	
+		//var process3 = require("child_process");
+		//ls = process3.execSync(cmd);
  		process.emit('user_event', user, userdata[user].currentword.id, 'scoring_done',score_event_object);
 		
 	    }
@@ -271,6 +258,9 @@ process.on('user_event', function(user, wordid, eventname, eventdata) {
 			var temp_file=userdata[user].currentword.adawavfilename + "temp";
 			var adaptation_matrix_name=userdata[user].currentword.adaptation_matrix_name;
 			debugout('adptation_matrix_name' + adaptation_matrix_name);
+			var fileSize = getFilesizeInBytes(from_file)
+			debugout("File size: " + fileSize)
+
 			fsSync = require("fs-sync");
 			fsSync.copy(from_file, temp_file)
 			fs.renameSync(temp_file, to_file); // is this atomic i.e. does it produce full file immediatedly?
@@ -1036,5 +1026,10 @@ function get_current_word_id(user) {
     return userdata[user].currentword.id;
 }
 
+function getFilesizeInBytes(filename) {
+ var stats = fs.statSync(filename)
+ var fileSizeInBytes = stats["size"]
+ return fileSizeInBytes
+}
 
 

@@ -35,17 +35,25 @@ def collect_audio_file_names(adaptation_path, word, n_anchors, flag_verbose):
 	cnt_names=len(name_array)-1
 	cnt_chosen=0
 	words_str=""
+	flag_rand_perm=1
+	if flag_rand_perm==1:
+		rand_perm=numpy.random.permutation(len(name_array))
+		index_vec=rand_perm
+	else:
+		index_vec=numpy.arange(len(name_array))
+
+#	rand_perm=rand_perm[1:n_anchors]
 	while (cnt_chosen<n_anchors ) and (cnt_names>=0):
 		if not(word in name_array[cnt_names]):
-			[speaker,word_audio]=parse_audio_file_name(name_array[cnt_names])
+			[speaker,word_audio]=parse_audio_file_name(name_array[index_vec[cnt_names]])
 			if not(word_audio in words_str):
-				name_chosen.append(name_array[cnt_names])
+				name_chosen.append(name_array[index_vec[cnt_names]])
 				cnt_chosen=cnt_chosen+1	
 			words_str=words_str + word_audio
 		cnt_names=cnt_names-1	
 		
 	if flag_verbose>=2:
-		sys.stderr.write(str(name_chosen) + '\n')
+		sys.stderr.write("collect_audio_file_names var name_chosen: " + str(name_chosen) + '\n')
 	return name_chosen
 
 def get_likelihood(f_name):
@@ -101,17 +109,19 @@ def compute_background_word_model_likelihood(word_names, lex_name, wav_name, fla
 
 def compute_background_audio_model_likelihood(wav_names, lex_name, target_word_name, flag_use_adaptation, adaptation_matrix_name, cfg_name, model_dir, speaker_path, flag_verbose):
 	wav_likelihoods=[]	
+	#sys.stderr.write("I'm in compute_bacground_audio_model_likelihood!\n" + str(wav_names) + "\n")
 	for wav_name in wav_names:
 		wav_name=wav_name.strip()
 		if flag_verbose >=2:
-			sys.stderr.write("dbg " + wav_name + "\n")
+			sys.stderr.write("compute_background_audio_model_likelihood " + wav_name + "\n")
 		cnt_list=0
 		likelihood=compute_cross_likelihood(target_word_name, lex_name, speaker_path + '/ada/' + wav_name, flag_use_adaptation, adaptation_matrix_name, cfg_name, model_dir, speaker_path, flag_verbose)
 		wav_likelihoods.append(likelihood)
 		if flag_verbose >=2:
-			sys.stderr.write(wav_name + ' ' +  str(likelihood) + ' ' + str(wav_name) + '\n')			
+			sys.stderr.write("compute_background_audio_model_likelihood " + wav_name + ' ' +  str(likelihood) + ' ' + str(wav_name) + '\n')			
 		cnt_list=cnt_list+1
 	wav_mat=numpy.array(wav_likelihoods)
+	#sys.stderr.write(str(wav_likelihoods) + "\n")
 	likelihood_background_model=wav_mat.mean()
 	return likelihood_background_model
 

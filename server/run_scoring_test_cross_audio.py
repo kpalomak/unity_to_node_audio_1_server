@@ -4,16 +4,16 @@ import os
 import numpy
 import shutil
 
-#subject_name='S9_pronunciation_'
-subject_name='eng1_'
+subject_name='S9_pronunciation_'
+#subject_name='S10_pronunciation_'
 word_list_name='/home/siak/siak/aalto_recordings/prompts/wordlist_random.txt'
 #word_list_name='./word_list_3words.txt'
-#test_wav_dir= '/home/siak/siak-server/process_audio/S9_chop/'
-test_wav_dir= '/home/siak/siak-server/process_audio/saris_eng1_recoding_chopped/'
+test_wav_dir= '/home/siak/siak-server/process_audio/S9_chop/'
+#test_wav_dir= '/home/siak/siak-server/process_audio/S10_chop/'
 wav_name_body = os.path.join(test_wav_dir, subject_name)
 lex_name = '/home/siak/models/clean-am/words.lex'
 ada_matrix = 'S'
-speaker_path = '/home/siak/node_server_kalle/server/saris_eng1_chop'
+speaker_path = '/home/siak/node_server_kalle/server/S9_chop'
 flag_use_adaptation = 0
 
 def collect_word_names(list_name):
@@ -56,17 +56,19 @@ else:
 
 
 align_path=speaker_path + "/align"
-word_path=speaker_path + "/word_cross_likelihoods"
+word_path=speaker_path + "/audio_cross_likelihoods"
 
 print align_path
 print word_path
 if os.path.exists(align_path):
 	shutil.rmtree(align_path)
+	os.makedirs(align_path)
 else:
 	os.makedirs(align_path)
 
 if os.path.exists(word_path):
 	shutil.rmtree(word_path)
+	os.makedirs(word_path)
 else:
 	os.makedirs(word_path)
 
@@ -78,7 +80,7 @@ if flag_run_analysis:
 		cnt_word=0
 		for wav_name in wav_list:
 			target_word=word_list[cnt_word]
-			cmd = "./audio_handling/word_cross_likelihood_score.py " + target_word + " " + wav_name + " " + speaker_path + " " + ada_matrix + " " + str(flag_use_adaptation) + " " + lex_name
+			cmd = "./audio_handling/audio_cross_likelihood_score.py " + target_word + " " + wav_name + " " + speaker_path + " " + ada_matrix + " " + str(flag_use_adaptation) + " " + lex_name
 			print cmd
 			ret=os.system(cmd)
 			if not(ret==0):
