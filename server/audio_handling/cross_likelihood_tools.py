@@ -3,6 +3,8 @@ import sys
 import os
 
 def collect_word_names(list_name,word,n_anchors):
+	# collects word names from a list file, randomizes their order
+	# and then lets you pick "n_anchor" random words from the list
 	with open(list_name, "r") as ins:
     		name_array = []
     		for line in ins:
@@ -19,6 +21,7 @@ def sorted_ls(path):
     return list(sorted(os.listdir(path), key=mtime))
 
 def parse_audio_file_name(name_audio_file):
+	# file name parsing from SIAK saved -wavs
         name_audio_file=name_audio_file.split('_')
         speaker=name_audio_file[0]
         unknown=name_audio_file[1]
@@ -26,7 +29,7 @@ def parse_audio_file_name(name_audio_file):
         return speaker, word
 
 def collect_audio_file_names(adaptation_path, word, n_anchors, flag_verbose):
-	# use files picked for adaptation a pronunciation score criterion 
+	# use files picked for adaptation based on a pronunciation score criterion 
 	# to ensure their audio quality
 	# pick n_anchors newest files	
 
@@ -57,6 +60,7 @@ def collect_audio_file_names(adaptation_path, word, n_anchors, flag_verbose):
 	return name_chosen
 
 def get_likelihood(f_name):
+	# parses the likelihood from the aligner output
 	with open(f_name,'r') as f_rob:
 		for line in f_rob:
 			if 'Total' in line:
@@ -74,6 +78,7 @@ def get_likelihood(f_name):
 
 
 def compute_cross_likelihood(word_name, lex_name, wav_name, flag_use_adaptation, adaptation_matrix_name, cfg_name, model_dir, speaker_path, flag_verbose):
+	# computes cross likelihood given the word name and wav
 	# define temp-files required for running aligner, if disk writing becomes too intense could
 	# construct a ram disk in the virtual machine
 	# http://www.hecticgeek.com/2015/12/create-ram-disk-ubuntu-linux/
@@ -92,7 +97,10 @@ def compute_cross_likelihood(word_name, lex_name, wav_name, flag_use_adaptation,
 
 
 def compute_background_word_model_likelihood(word_names, lex_name, wav_name, flag_use_adaptation, adaptation_matrix_name, cfg_name, model_dir, speaker_path, flag_verbose):
-	word_likelihoods=[]	
+	word_likelihoods=[]
+	# loops throuh set of words and computes the background model likelihood as mean of files
+	# the same current audio file is used for every different word
+	# thus scoring is done based on n_anchors mismatching words to that given audio
 	for word_name in word_names:
 		word_name=word_name.strip()
 		if flag_verbose >=2:
@@ -108,7 +116,9 @@ def compute_background_word_model_likelihood(word_names, lex_name, wav_name, fla
 	return likelihood_background_model
 
 def compute_background_audio_model_likelihood(wav_names, lex_name, target_word_name, flag_use_adaptation, adaptation_matrix_name, cfg_name, model_dir, speaker_path, flag_verbose):
-	wav_likelihoods=[]	
+	wav_likelihoods=[]
+	# loops through a set of wavs, and scores them against the target word
+	# the same word is used for scoring mismatching audio samples
 	#sys.stderr.write("I'm in compute_bacground_audio_model_likelihood!\n" + str(wav_names) + "\n")
 	for wav_name in wav_names:
 		wav_name=wav_name.strip()
@@ -157,8 +167,6 @@ def read_cross_likelihood_log(path_word_cross_likelihoods, target_word, flag_use
 		sys.stderr.write("problem in reading " + name_read +"\n")
 		return flag_file_found, likelihood_background_model, likelihood_target_word
 	
-	#if 1:
-	#sys.stderr.write("trying to read " + name_read + '\n')
 	if flag_verbose >=1: 
 		sys.stderr.write(name_read + "\n")
 
@@ -222,7 +230,9 @@ def collect_scores_from_history(path_word_cross_likelihoods,num_history,flag_ver
 	return scores, scores_neg
 
 def compute_score(scores, scores_neg, likelihood_target_word, likelihood_background_model, flag_verbose):		
-	
+	# sort out the final scoring based on history
+	# puts data in percentiles so that getting target likelihoods above the background
+	# model gives scores larger than 3	
 	if len(numpy.atleast_1d(scores))>1:
 		scores_0_perc = numpy.percentile(scores,0)
 		scores_20_perc = numpy.percentile(scores,20)

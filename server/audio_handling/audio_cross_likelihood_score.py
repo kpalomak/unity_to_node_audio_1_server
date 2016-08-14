@@ -25,7 +25,7 @@ cfg_name='/home/siak/models/clean-am/siak_clean_b.cfg'
 path_audio_cross_likelihoods = speaker_path + "/audio_cross_likelihoods/"
 path_audio_background_likelihoods = speaker_path + "/audio_background_likelihoods/"
 num_history=100
-flag_verbose = 1
+flag_verbose = 2
 flag_use_new_background=1
 wav_names=collect_audio_file_names(adaptation_path, target_word, n_anchors, flag_verbose)
 

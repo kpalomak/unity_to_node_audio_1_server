@@ -12,10 +12,12 @@ word_list_name='/home/siak/siak/aalto_recordings/prompts/wordlist_random.txt'
 test_wav_dir= '/home/siak/siak-server/process_audio/saris_eng1_recoding_chopped/'
 wav_name_body = os.path.join(test_wav_dir, subject_name)
 lex_name = '/home/siak/models/clean-am/words.lex'
-ada_matrix = 'S'
 speaker_path = '/home/siak/node_server_kalle/server/saris_eng1_chop'
-flag_use_adaptation = 0
-
+flag_use_adaptation = 1
+flag_estimate_adaptation_matrix = 0
+model_name='/home/siak/models/clean-am/siak_clean_b'
+adaptation_matrix_name=speaker_path + '/S'
+ 
 def collect_word_names(list_name):
         with open(list_name, "r") as ins:
                 name_array = []
@@ -40,6 +42,9 @@ def collect_wav_names(name_array,wav_name_body):
 
         return wav_name_array
 
+def run_adaptation(target_dir,lexicon,model,adaptation_matrix_name):
+	cmd = '~/node-v4.4.5-linux-x64/bin/node ./audio_handling/adaptation_dbg.js ' + target_dir + ' ' + lexicon + ' ' + model + ' ' + adaptation_matrix_name
+	os.system(cmd)
 
 word_list=collect_word_names(word_list_name)
 
@@ -48,7 +53,7 @@ wav_list=collect_wav_names(word_list, wav_name_body)
 #print word_list
 #print wav_list
 rounds=5
-name_score_mat=subject_name + 'score_mat_rounds_' + str(rounds)
+name_score_mat=subject_name + 'words_score_mat_rounds_' + str(rounds)
 if os.path.exists(name_score_mat + '.npy'):
 	flag_run_analysis=0
 else:
@@ -72,13 +77,16 @@ else:
 
 score_mat=numpy.empty((0,len(word_list)))
 
+if flag_estimate_adaptation_matrix:
+	run_adaptation(speaker_path, lex_name, model_name,adaptation_matrix_name)
+
 if flag_run_analysis:
 	for cnt_rounds in range(0,rounds):
 		score_arr=numpy.array([])
 		cnt_word=0
 		for wav_name in wav_list:
 			target_word=word_list[cnt_word]
-			cmd = "./audio_handling/word_cross_likelihood_score.py " + target_word + " " + wav_name + " " + speaker_path + " " + ada_matrix + " " + str(flag_use_adaptation) + " " + lex_name
+			cmd = "./audio_handling/word_cross_likelihood_score.py " + target_word + " " + wav_name + " " + speaker_path + " " + adaptation_matrix_name + " " + str(flag_use_adaptation) + " " + lex_name
 			print cmd
 			ret=os.system(cmd)
 			if not(ret==0):

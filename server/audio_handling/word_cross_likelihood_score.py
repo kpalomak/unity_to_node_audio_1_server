@@ -24,7 +24,7 @@ model_dir='/home/siak/models/clean-am/'
 cfg_name='/home/siak/models/clean-am/siak_clean_b.cfg'
 path_word_cross_likelihoods = speaker_path + "/word_cross_likelihoods/"
 num_history=100
-flag_verbose = 1
+flag_verbose = 2
 
 word_names=collect_word_names(word_list_name,target_word,n_anchors)
 
