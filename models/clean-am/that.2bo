@@ -1,0 +1,15 @@
+
+\data\
+ngram 1=3
+ngram 2=2
+
+\1-grams:
+-0.30103	</s>
+-99	<s>	-99
+-0.30103	that	-99
+
+\2-grams:
+0	<s> that
+0	that </s>
+
+\end\

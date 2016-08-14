@@ -1,0 +1,12 @@
+export TRAIN_NAME='siak_clean_a'
+export TRAIN_DIR="${WORK_DIR}/${TRAIN_NAME}"
+export TRAIN_IM="${GROUP_DIR}/p/siak/models/wsjcam0_16k_d/mfcc_wsjcam0_d_16k_12.11.2009_20"
+export TRAIN_TRN="${GROUP_DIR}/p/siak/models/clean-am/train.trn"
+export TRAIN_WAVS="${GROUP_DIR}/p/siak/models/clean-am/wav-list"
+export TRAIN_RECIPE="${GROUP_DIR}/p/siak/models/clean-am/recipe"
+export TRAIN_LEX="${GROUP_DIR}/p/siak/models/clean-am/train.lex"
+export TRAIN_GAUSSIANS=40000
+export TRAIN_BATCHES=50
+export TRAIN_BINDIR="${GROUP_DIR}/Modules/src/git/AaltoASR/build/aku"
+export TRAIN_SCRIPTDIR="${GROUP_DIR}/Modules/src/git/AaltoASR/aku/scripts"
+export TRAIN_TIERULES="${TRAIN_SCRIPTDIR}/finnish_rules.txt"
