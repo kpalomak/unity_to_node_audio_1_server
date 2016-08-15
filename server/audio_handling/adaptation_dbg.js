@@ -39,11 +39,31 @@ console.log("show args");
 
 // setting arguments, and stuff derived from arguments
 var path_speaker=process.argv[2];
+console.log("path_speaker: " + path_speaker);
+
 var path_ada = path_speaker + "/ada";
 var phn_out = path_ada + "_phns_out/";
 var phn_in = path_ada + "_phns_in/";
-var recipe_name=path_speaker + "/test.recipe"
 var name_lex_in=process.argv[3];
+console.log("name_lex_in: " + name_lex_in);
+
+if (!fs.existsSync(path_ada)){
+    fs.mkdirSync(path_ada);
+}
+
+if (!fs.existsSync(phn_in)){
+    fs.mkdirSync(phn_in);
+}
+
+if (!fs.existsSync(phn_out)){
+    fs.mkdirSync(phn_out);
+}
+
+var recipe_name=path_speaker + "/test.recipe"
+
+
+
+
 var name_lex_utf=path_speaker + "/lex_utf.lex";
 var model_name=process.argv[4];
 debugout("I didn't find cfg in configs, I hope I got it right");

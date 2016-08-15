@@ -22,8 +22,14 @@ word_list_name='/home/siak/siak/aalto_recordings/prompts/wordlist_random.txt'
 lex_name=sys.argv[6]
 model_dir='/home/siak/models/clean-am/'
 cfg_name='/home/siak/models/clean-am/siak_clean_b.cfg'
-path_audio_cross_likelihoods = speaker_path + "/audio_cross_likelihoods/"
-path_audio_background_likelihoods = speaker_path + "/audio_background_likelihoods/"
+
+if flag_use_adaptation:
+	adaptation_text='ada_'
+else:
+	adaptation_text=''
+
+path_audio_cross_likelihoods = speaker_path + "/audio_cross_" + adaptation_text + "likelihoods/"
+path_audio_background_likelihoods = speaker_path + "/audio_background_" + adaptation_text + "likelihoods/"
 num_history=100
 flag_verbose = 2
 flag_use_new_background=1

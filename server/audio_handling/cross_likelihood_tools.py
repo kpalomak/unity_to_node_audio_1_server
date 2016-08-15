@@ -205,6 +205,8 @@ def collect_scores_from_history(path_word_cross_likelihoods,num_history,flag_ver
 	scores_neg=numpy.array(0)
 	for i in range(num_files-num_history,num_files):
 		name_in_file = path_word_cross_likelihoods + list_of_files[i]
+		if flag_verbose >=2:
+			sys.stderr.write('history file name ' + name_in_file + '\n')
 		try:
 			with open(name_in_file) as f_files:
 				for line in f_files:
@@ -221,10 +223,10 @@ def collect_scores_from_history(path_word_cross_likelihoods,num_history,flag_ver
 
 	if flag_verbose>=2:
 		sys.stderr.write('list of_files' + str(list_of_files) + "\n")
-		sys.stderr.write('scores: ' + str(len(numpy.atleast_1d(scores))) + "\n")
+		sys.stderr.write('scores collected: ' + str(numpy.atleast_1d(scores)) + "\n")
 	scores = reject_outliers(scores,2)
 	if flag_verbose>=2:
-		sys.stderr.write('scores: ' + str(len(numpy.atleast_1d(scores))) + "\n")
+		sys.stderr.write('scores collected: ' + str(numpy.atleast_1d(scores)) + "\n")
 	scores_neg = reject_outliers(scores_neg,2)
 
 	return scores, scores_neg

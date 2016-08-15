@@ -22,7 +22,14 @@ word_list_name='/home/siak/siak/aalto_recordings/prompts/wordlist_random.txt'
 lex_name=sys.argv[6]
 model_dir='/home/siak/models/clean-am/'
 cfg_name='/home/siak/models/clean-am/siak_clean_b.cfg'
-path_word_cross_likelihoods = speaker_path + "/word_cross_likelihoods/"
+
+if flag_use_adaptation:
+	adaptation_text='ada_'
+else:
+	adaptation_text=''
+
+path_word_cross_likelihoods = speaker_path + "/word_cross_" + adaptation_text + "likelihoods/"
+
 num_history=100
 flag_verbose = 2
 
@@ -39,7 +46,7 @@ write_cross_likelihood_log(path_word_cross_likelihoods, target_word, likelihood_
 score=compute_score(scores, scores_neg, likelihood_target_word, likelihood_background_model, flag_verbose)
 
 if flag_verbose > 0: 
-	sys.stderr.write('scores: ' + str(score) + '\n') 	
+	sys.stderr.write('scores in main: ' + str(score) + '\n') 	
 	sys.stderr.write('likelihood_background_model: '  + str(likelihood_background_model) + '\n')
 	sys.stderr.write('likelihood_target_word: '  + str(likelihood_target_word) + '\n')
 

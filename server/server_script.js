@@ -202,7 +202,7 @@ process.on('user_event', function(user, wordid, eventname, eventdata) {
 	    }
 	    else if (eventname == 'kalle_dbg') {
 		debugout(colorcodes.event, 'kalle_dbg: ' + eventdata.toString());
-		score_event_object = { 'total_score' :  5};
+
 		/*	   'phoneme_scores' : scores,
 			   'reference_phones' : reference_phones,
 			   'guess_phones' : guess_phones,
@@ -220,6 +220,12 @@ process.on('user_event', function(user, wordid, eventname, eventdata) {
 		debugout("audio_cross_likelihood scoring command: " + cmd)	
 		//var process3 = require("child_process");
 		//ls = process3.execSync(cmd);
+		var score_file_name = eventdata.target_dir + '/score_out.txt'
+		var score_string = fs.readFileSync(score_file_name).toString();
+		debugout('score string' + score_string)
+		score_event_object = { 'total_score' :  parseInt(score_string), 'error': null};
+		//score_event_object = { 'total_score' :  5};// parseInt(score_string)};
+
  		process.emit('user_event', user, userdata[user].currentword.id, 'scoring_done',score_event_object);
 		
 	    }
@@ -252,27 +258,30 @@ process.on('user_event', function(user, wordid, eventname, eventdata) {
 		debugout(colorcodes.event,'kalle wav: ' + userdata[user].currentword.wavfilename);
 		debugout(colorcodes.event,'kalle ada wav: ' + userdata[user].currentword.adawavfilename);
 
-		if (eventdata.total_score>4) {
+		if (eventdata.total_score>4 && conf.recogconf.flag_use_adaptation) {
 			var from_file=userdata[user].currentword.wavfilename;
 			var to_file=userdata[user].currentword.adawavfilename;
 			var temp_file=userdata[user].currentword.adawavfilename + "temp";
 			var adaptation_matrix_name=userdata[user].currentword.adaptation_matrix_name;
-			debugout('adptation_matrix_name' + adaptation_matrix_name);
+			var target_dir=userdata[user].currentword.target_dir;
+			debugout('adptation_matrix_name ' + adaptation_matrix_name);
 			var fileSize = getFilesizeInBytes(from_file)
 			debugout("File size: " + fileSize)
-
+			debugout("target_dir: " + target_dir)
 			fsSync = require("fs-sync");
 			fsSync.copy(from_file, temp_file)
 			fs.renameSync(temp_file, to_file); // is this atomic i.e. does it produce full file immediatedly?
 			if (flag_ada_running ==0) {
-				var target_dir=userdata[user].currentword.target_dir;
-				var adaptation = require('./audio_handling/adaptation.js');
-				var process2 = require('child_process');
+				//var target_dir=userdata[user].currentword.target_dir;
+				//var adaptation = require('./audio_handling/adaptation_dbg.js');
+				var process3 = require('child_process');
 				var lexicon = conf.recogconf.lexicon;
     				var model = conf.recogconf.model
 				flag_ada_running=1;
-		        	debugout("adaptation running");
-				ls = process2.exec('~/node-v4.4.5-linux-x64/bin/node ./audio_handling/adaptation_dbg.js ' + target_dir + ' ' + lexicon + ' ' + model + ' ' + adaptation_matrix_name, function (error, stdout, stderr) {
+		        	debugout("adaptation running " + target_dir);
+				cmd = '~/node-v4.4.5-linux-x64/bin/node ./audio_handling/adaptation_dbg.js ' + target_dir + ' ' + lexicon + ' ' + model + ' ' + adaptation_matrix_name;
+				debugout(cmd);
+				ls = process3.exec(cmd, function (error, stdout, stderr) {
 			  	//console.log('stdout: ' + stdout);
 				//console.log('stderr: ' + stderr);
 					
@@ -732,7 +741,6 @@ function check_last_packet(user) {
 		debugout(user + ": check_last_packet all good - All chunks in : Calling Finish_audio");
 
 	    userdata[user].currentword.finishing_segmenter = true;
-
 
 	    //userdata[user].segmenter.finish_audio();
 	    // Let's send the speech segmnents to the aligner:
